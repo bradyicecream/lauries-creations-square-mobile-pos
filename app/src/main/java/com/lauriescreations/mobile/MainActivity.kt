@@ -1,0 +1,221 @@
+package com.lauriescreations.mobile
+
+import android.Manifest
+import android.app.Activity
+import android.app.AlertDialog
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Bundle
+import android.text.InputType
+import android.view.ViewGroup
+import android.webkit.JavascriptInterface
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.Toast
+import com.squareup.sdk.mobilepayments.MobilePaymentsSdk
+import com.squareup.sdk.mobilepayments.core.Result.Failure
+import com.squareup.sdk.mobilepayments.core.Result.Success
+import com.squareup.sdk.mobilepayments.mockreader.ui.MockReaderUI
+import com.squareup.sdk.mobilepayments.payment.CurrencyCode
+import com.squareup.sdk.mobilepayments.payment.Money
+import com.squareup.sdk.mobilepayments.payment.Payment.OfflinePayment
+import com.squareup.sdk.mobilepayments.payment.Payment.OnlinePayment
+import com.squareup.sdk.mobilepayments.payment.PaymentParameters
+import com.squareup.sdk.mobilepayments.payment.ProcessingMode
+import com.squareup.sdk.mobilepayments.payment.PromptMode
+import com.squareup.sdk.mobilepayments.payment.PromptParameters
+import org.json.JSONObject
+import java.util.UUID
+
+class MainActivity : Activity() {
+    private lateinit var browser: WebView
+    private var inPayment = false
+    private val squareReady: Boolean get() = (application as LaurieApplication).sdkReady
+
+    private fun notifyUI(type: String, message: String, paymentId: String = "") {
+        if (!::browser.isInitialized) return
+        val payload = JSONObject().apply {
+            put("type", type)
+            put("message", message)
+            put("paymentId", paymentId)
+            put("sandbox", true)
+        }.toString()
+        runOnUiThread {
+            browser.evaluateJavascript("window.receiveSquareEvent && window.receiveSquareEvent(${JSONObject.quote(payload)});", null)
+            if (type == "error") Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private inner class RegisterBridge {
+        @JavascriptInterface fun squareState(): String {
+            if (!squareReady) return "not-configured"
+            return if (MobilePaymentsSdk.authorizationManager().authorizationState.isAuthorized) "authorized-sandbox" else "unauthorized-sandbox"
+        }
+        @JavascriptInterface fun configureSquare() = runOnUiThread { configureSquareDialog() }
+        @JavascriptInterface fun readerSettings() = runOnUiThread {
+            if (!squareReady || !MobilePaymentsSdk.authorizationManager().authorizationState.isAuthorized) {
+                notifyUI("error", "Connect to Square Sandbox first.")
+                return@runOnUiThread
+            }
+            MobilePaymentsSdk.settingsManager().showSettings { result ->
+                if (result is Failure) notifyUI("error", "Reader settings: ${result.errorCode}")
+            }
+        }
+        @JavascriptInterface fun takePayment(amountCents: Int, referenceId: String, note: String) = runOnUiThread {
+            startSandboxPayment(amountCents, referenceId, note)
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        browser = WebView(this)
+        browser.webChromeClient = WebChromeClient()
+        browser.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = true
+        }
+        browser.settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            allowFileAccess = true
+            allowContentAccess = false
+            javaScriptCanOpenWindowsAutomatically = false
+            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            @Suppress("DEPRECATION")
+            allowFileAccessFromFileURLs = false
+            @Suppress("DEPRECATION")
+            allowUniversalAccessFromFileURLs = false
+        }
+        browser.addJavascriptInterface(RegisterBridge(), "LaurieSquare")
+        setContentView(browser)
+        browser.loadUrl("file:///android_asset/index.html")
+        if (squareReady && MobilePaymentsSdk.authorizationManager().authorizationState.isAuthorized) {
+            MockReaderUI.show()
+        }
+    }
+
+    private fun requiredPermissions(): Array<String> {
+        val result = mutableListOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.READ_PHONE_STATE,
+            Manifest.permission.RECORD_AUDIO
+        )
+        if (Build.VERSION.SDK_INT >= 31) {
+            result.add(Manifest.permission.BLUETOOTH_CONNECT)
+            result.add(Manifest.permission.BLUETOOTH_SCAN)
+        }
+        return result.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }.toTypedArray()
+    }
+
+    private fun configureSquareDialog() {
+        if (!squareReady) {
+            notifyUI("error", "Add the Sandbox Application ID as the build secret SQUARE_SANDBOX_APP_ID, then rebuild the APK.")
+            return
+        }
+        val pendingPermissions = requiredPermissions()
+        if (pendingPermissions.isNotEmpty()) {
+            requestPermissions(pendingPermissions, 140)
+            Toast.makeText(this, "Grant permissions, then tap Connect Square again.", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (MobilePaymentsSdk.authorizationManager().authorizationState.isAuthorized) {
+            notifyUI("status", "Already connected to Square Sandbox. Use Readers to pair a mock reader.")
+            MockReaderUI.show()
+            return
+        }
+        val pad = (resources.displayMetrics.density * 18).toInt()
+        val form = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, 0)
+        }
+        val tokenField = EditText(this).apply {
+            hint = "Sandbox access token (not production)"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            isSingleLine = true
+        }
+        val locationField = EditText(this).apply {
+            hint = "Sandbox location ID"
+            isSingleLine = true
+        }
+        form.addView(tokenField, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        form.addView(locationField, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        AlertDialog.Builder(this)
+            .setTitle("Connect Square Sandbox")
+            .setMessage("Use Sandbox credentials only. Token is not saved to the register or repository. Never enter your production access token here.")
+            .setView(form)
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Connect") { _, _ ->
+                val token = tokenField.text.toString().trim()
+                val location = locationField.text.toString().trim()
+                tokenField.text.clear()
+                if (token.isBlank() || location.isBlank()) {
+                    notifyUI("error", "Both Sandbox token and location ID are required.")
+                    return@setPositiveButton
+                }
+                notifyUI("status", "Authorizing Square Sandbox…")
+                try {
+                    MobilePaymentsSdk.authorizationManager().authorize(token, location) { result ->
+                        when (result) {
+                            is Success -> {
+                                MockReaderUI.show()
+                                notifyUI("authorized", "Connected to Square Sandbox. Add a mock reader using the floating reader icon.")
+                            }
+                            is Failure -> notifyUI("error", "Sandbox authorization failed: ${result.errorCode}")
+                        }
+                    }
+                } catch (ex: Exception) {
+                    notifyUI("error", "Cannot authorize Square Sandbox: ${ex.javaClass.simpleName}")
+                }
+            }.show()
+    }
+
+    private fun startSandboxPayment(amountCents: Int, referenceId: String, note: String) {
+        if (inPayment) { notifyUI("error", "A payment is already in progress."); return }
+        if (!squareReady || !MobilePaymentsSdk.authorizationManager().authorizationState.isAuthorized) {
+            notifyUI("error", "Authorize Square Sandbox before checkout."); return
+        }
+        if (amountCents <= 0 || amountCents > 1_000_000) {
+            notifyUI("error", "Check your sale amount before checkout."); return
+        }
+        if (referenceId.isBlank() || referenceId.length > 40) {
+            notifyUI("error", "Invalid unique sale reference."); return
+        }
+        try {
+            val params = PaymentParameters.Builder(
+                amount = Money(amountCents.toLong(), CurrencyCode.USD),
+                processingMode = ProcessingMode.ONLINE_ONLY,
+                allowCardSurcharge = false,
+                paymentAttemptId = UUID.randomUUID().toString()
+            ).referenceId(referenceId).note(note.take(450)).autocomplete(true).build()
+            val prompt = PromptParameters(mode = PromptMode.DEFAULT)
+            inPayment = true
+            notifyUI("processing", "Square Sandbox checkout opened. Use the mock reader to simulate a payment.")
+            MobilePaymentsSdk.paymentManager().startPaymentActivity(params, prompt) { result ->
+                inPayment = false
+                when (result) {
+                    is Success -> when (val payment = result.value) {
+                        is OnlinePayment -> notifyUI("success", "Sandbox payment completed (TEST ONLY).", payment.id)
+                        is OfflinePayment -> notifyUI("error", "Unexpected offline payment result. Check Sandbox transactions before retrying.", payment.localId)
+                    }
+                    is Failure -> notifyUI("error", "Square payment was not completed: ${result.errorCode}. Check Sandbox activity before retrying.")
+                }
+            }
+        } catch (e: Exception) {
+            inPayment = false
+            notifyUI("error", "Could not start payment: ${e.javaClass.simpleName}")
+        }
+    }
+
+    override fun onDestroy() {
+        if (::browser.isInitialized) {
+            browser.removeJavascriptInterface("LaurieSquare")
+            browser.destroy()
+        }
+        super.onDestroy()
+    }
+}
