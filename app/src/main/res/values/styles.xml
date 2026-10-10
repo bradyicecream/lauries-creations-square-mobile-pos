@@ -1,0 +1,8 @@
+<resources>
+  <style name="LaurieTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+    <item name="android:colorAccent">#8140A6</item>
+    <item name="android:statusBarColor">#46215D</item>
+    <item name="android:navigationBarColor">#46215D</item>
+    <item name="android:windowLightStatusBar">false</item>
+  </style>
+</resources>
