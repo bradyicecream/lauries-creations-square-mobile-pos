@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#4b285f"><title>Laurie's Creations POS</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="brandicon">✦</span><div><h1>Laurie’s Creations</h1><small>handmade with love and a little bit of sparkle</small></div></div>
+  <div class="topActions"><span class="pill" id="sqStatus">Register only</span><button class="secondary" id="settingsButton">⚙ Manage</button></div>
+</header>
+<div class="sandboxBanner">💜 LAURIE’S CREATIONS • SQUARE SANDBOX TESTING • NOT LIVE PAYMENTS</div>
+<main class="workspace">
+  <section class="catalog">
+    <div class="cataloghead"><div><h2>Products</h2><p>Tap a product to customize and add to cart.</p></div><button id="newProduct" class="secondary">+ New product</button></div>
+    <nav id="categories" class="categories" aria-label="Product categories"></nav>
+    <div id="productGrid" class="products"></div>
+  </section>
+  <aside class="cartpane">
+    <div class="cartHeader"><h2>Current sale</h2><button id="clearCart" class="linkbtn">Clear</button></div>
+    <div id="cartList" class="cartList"><p class="empty">Tap a product to start a sale.</p></div>
+    <div class="totals">
+      <div><span>Subtotal</span><b id="subtotal">$0.00</b></div>
+      <div><span>Tax <span id="taxCaption">(0%)</span></span><b id="tax">$0.00</b></div>
+      <div class="grand"><span>Total</span><strong id="total">$0.00</strong></div>
+    </div>
+    <p id="checkoutNotice" class="notice">All totals must be checked against your actual Square prices and tax settings.</p>
+    <button id="checkout" class="primary full">Pay with Square — TEST ONLY</button>
+    <div class="bottomActions"><button id="squareConnect" class="secondary">Connect Sandbox</button><button id="readerSettings" class="secondary">Reader settings</button></div>
+    <p class="fine">The Square SDK handles card payment screens. This starter does not synchronize Square catalog, modifiers, or tax rates.</p>
+  </aside>
+</main>
+<dialog id="dialog"><form method="dialog" id="dialogForm"><div class="dialogTop"><h2 id="dialogTitle">Edit</h2><button type="button" id="closeDialog" class="iconButton" aria-label="Close">✕</button></div><div id="dialogBody"></div><div id="dialogActions" class="dialogActions"></div></form></dialog>
+<input type="file" id="importFile" accept="application/json" hidden>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="app.js"></script>
+</body></html>
