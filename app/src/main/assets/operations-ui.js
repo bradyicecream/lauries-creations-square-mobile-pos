@@ -1,5 +1,5 @@
-/* Local business operations UI for Laurie’s Creations POS v1.6.
-   External Square banking/payment links and second-device display require a separate secure backend.
+/* Local business operations UI. Customer display pairs over local Wi-Fi on Android;
+   external banking and payment links still require their own secure backends.
 */
 (function(root){
  'use strict';
@@ -138,25 +138,45 @@
      });
    }
    function displayPreview(){
+     let details={};
+     try{details=JSON.parse(root.LaurieSquare?.displayStatus?.()||'{}');}catch(_){}
+     const available=details.running===true && details.address && details.pairingCode;
      const totals=ui.amounts(),cardTotals=root.LaurieCheckoutCharges.calculate(state,'card');
      const lines=state.cart.map(x=>'<div class="customerDisplayLine"><span>'+e(x.qty)+' × '+e(x.name)+'</span><strong>'+amt(x.price*x.qty)+'</strong></div>').join('');
-     open('Customer-facing display preview',
-       '<p class="opsWarning">Preview on this device only. A synchronized second iPad or Zebra display will require a hosted, authenticated connection; this preview does not transmit sales to another screen.</p>'+
-       '<div class="customerDisplayDemo"><div class="customerDisplayBrand">✦ Laurie’s Creations</div>'+
+     const demo='<div class="customerDisplayDemo"><div class="customerDisplayBrand">✦ Laurie’s Creations</div>'+
        '<p>Welcome! Your order</p>'+(lines||'<div class="customerDisplayEmpty">Items will appear here as you build the sale.</div>')+
        '<div class="customerDisplayCharges">'+totals.charges.map(c=>
          '<div class="customerDisplayLine"><span>'+e(c.label)+' (required)</span><strong>'+amt(c.amountCents)+'</strong></div>').join('')+
          (cardTotals.mandatoryGratuityCents?
            '<div class="customerDisplayLine"><span>Gratuity (card only)</span><strong>'+amt(cardTotals.mandatoryGratuityCents)+'</strong></div>':'')+
-         '</div>'+
-       '<div class="customerDisplayTotal"><span>Cash total</span><strong>'+amt(totals.total)+'</strong></div>'+
-       (cardTotals.mandatoryGratuityCents?
-         '<div class="customerDisplayTotal"><span>Card total</span><strong>'+amt(cardTotals.total)+'</strong></div>':'')+
-       '<small>Handmade with love and a little bit of sparkle</small></div>',[
-       {label:'Close preview',click:close}
-     ]);
-   }
-   function connectionInfo(type){
+         '</div><div class="customerDisplayTotal"><span>Cash total</span><strong>'+amt(totals.total)+'</strong></div>'+
+         (cardTotals.mandatoryGratuityCents?
+           '<div class="customerDisplayTotal"><span>Card total</span><strong>'+amt(cardTotals.total)+'</strong></div>':'')+
+         '<small>Handmade with love and a little bit of sparkle</small></div>';
+     if(available){
+       open('Live customer-facing display',
+         '<p class="opsWarning">LIVE over local Wi-Fi. Keep this Zebra register open and connect both devices to the same Wi-Fi network. The second screen is view-only, and no Square credentials or card data are shared.</p>'+
+         '<p><strong>1. On the customer iPad or Zebra, open Safari or Chrome and enter:</strong></p>'+
+         '<p style="font-size:1.14em;word-break:break-all;background:#f4e9fa;padding:12px;border-radius:9px;color:#442356"><strong>'+e(details.address)+'</strong></p>'+
+         '<p><strong>2. Enter this pairing code:</strong></p>'+
+         '<p style="font-size:1.45em;letter-spacing:.16em;font-weight:900;text-align:center;color:#57306f">'+e(details.pairingCode)+'</p>'+
+         '<p><strong>3.</strong> Add, edit or remove an item on this register. The customer screen updates automatically (usually within one second).</p>'+
+         '<button type="button" class="secondary" id="opsShareDisplay">Share address and code</button>'+
+         '<p class="fine">This is a local-network connection, not an internet-hosted Square customer display. The cashier device and Wi-Fi must stay available.</p>'+
+         '<p class="fine">Current order example on cashier:</p>'+demo,[
+           {label:'Close',click:close}
+         ]);
+       const button=$('opsShareDisplay');
+       if(button)button.onclick=()=>{try{root.LaurieSquare.shareDisplayDetails();}catch(_){toast('Could not share the display link.');}};
+     }else{
+       open('Customer-facing display preview',
+         '<p class="opsWarning">'+e(details.reason||'Live pairing is available inside the updated Android APK, not a browser-only preview.')+
+         ' This on-device example is not synchronized with another screen.</p>'+demo,[
+           {label:'Close preview',click:close}
+         ]);
+     }
+  }
+  function connectionInfo(type){
      const isLinks=type==='links',title=isLinks?'Payment links':'Banking';
      open(title+' — connection needed',
        '<p class="opsWarning">'+(isLinks?
