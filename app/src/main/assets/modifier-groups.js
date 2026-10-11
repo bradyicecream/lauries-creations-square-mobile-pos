@@ -65,7 +65,11 @@
      names.add(n.toLowerCase());
      if(opt.price!==null&&(!isInt(opt.price)||opt.price<0||opt.price>100000000))return 'A modifier upcharge must be zero or greater, or blank if unverified.';
    }
-   if(groups.some(g=>g.id!==existingId&&g.name.toLowerCase()===name.toLowerCase()))
+   const original=groups.find(g=>g.id===existingId);
+   // Historical Square snapshots can contain distinct groups sharing the same name.
+   // Allow those old groups to be edited without forcing the owner to rename them.
+   const unchangedLegacyName=original&&original.name.toLowerCase()===name.toLowerCase();
+   if(!unchangedLegacyName&&groups.some(g=>g.id!==existingId&&g.name.toLowerCase()===name.toLowerCase()))
      return 'A group with that name already exists. Rename it or edit the existing group.';
    return null;
  }
@@ -98,7 +102,7 @@
    if(!state.modifierSets.some(g=>g.id===id))return 0;
    let changed=0;
    for(const p of state.products){
-     if(p.category!==category)continue;
+     if(category!=='__all__'&&p.category!==category)continue;
      const current=p.modifierGroupIds||[];
      if(enable&&!current.includes(id)){p.modifierGroupIds=[...current,id];changed++;}
      else if(!enable&&current.includes(id)){p.modifierGroupIds=current.filter(x=>x!==id);changed++;}
