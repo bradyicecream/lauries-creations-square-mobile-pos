@@ -3,6 +3,8 @@ package com.lauriescreations.mobile
 import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -78,8 +80,15 @@ class MainActivity : Activity() {
                 if (result is Failure) notifyUI("error", "Reader settings: ${result.errorCode}")
             }
         }
-        @JavascriptInterface fun takePayment(amountCents: Int, referenceId: String, note: String) = runOnUiThread {
-            startSandboxPayment(amountCents, referenceId, note)
+        @JavascriptInterface fun takePayment(amountCents: Int, referenceId: String, note: String, tipCents: Int) = runOnUiThread {
+            startSandboxPayment(amountCents, referenceId, note, tipCents)
+        }
+        @JavascriptInterface fun openSquareDashboard() = runOnUiThread {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://squareup.com/dashboard")))
+            } catch (ex: Exception) {
+                notifyUI("error", "Could not open browser: ${ex.javaClass.simpleName}")
+            }
         }
     }
 
@@ -223,7 +232,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun startSandboxPayment(amountCents: Int, referenceId: String, note: String) {
+    private fun startSandboxPayment(amountCents: Int, referenceId: String, note: String, tipCents: Int) {
         if (inPayment) { notifyUI("error", "A payment is already in progress."); return }
         if (!squareReady || !MobilePaymentsSdk.authorizationManager().authorizationState.isAuthorized) {
             notifyUI("error", "Authorize Square Sandbox before checkout."); return
@@ -231,16 +240,22 @@ class MainActivity : Activity() {
         if (amountCents <= 0 || amountCents > 1_000_000) {
             notifyUI("error", "Check your sale amount before checkout."); return
         }
+        if (tipCents < 0 || tipCents > 1_000_000 || amountCents.toLong() + tipCents > 2_000_000L) {
+            notifyUI("error", "Check the selected tip amount before checkout."); return
+        }
         if (referenceId.isBlank() || referenceId.length > 40) {
             notifyUI("error", "Invalid unique sale reference."); return
         }
         try {
-            val params = PaymentParameters.Builder(
+            val builder = PaymentParameters.Builder(
                 amount = Money(amountCents.toLong(), CurrencyCode.USD),
                 processingMode = ProcessingMode.ONLINE_ONLY,
                 allowCardSurcharge = false,
                 paymentAttemptId = UUID.randomUUID().toString()
-            ).referenceId(referenceId).note(note.take(450)).autocomplete(true).build()
+            ).referenceId(referenceId).note(note.take(450)).autocomplete(true)
+            // Square's amount excludes tipMoney; never add tips to the base amount twice.
+            if (tipCents > 0) builder.tipMoney(Money(tipCents.toLong(), CurrencyCode.USD))
+            val params = builder.build()
             val prompt = PromptParameters(mode = PromptMode.DEFAULT)
             inPayment = true
             notifyUI("processing", "Square Sandbox checkout opened. Use the mock reader to simulate a payment.")
