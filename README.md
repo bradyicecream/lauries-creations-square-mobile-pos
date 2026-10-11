@@ -1,5 +1,7 @@
 # 💜 Laurie's Creations — Square Mobile POS
 
+**v1.3 Sandbox custom Favorites:** The Checkout screen now supports multiple customizable Favorites tabs. Tap **＋ Tab** to create one, **Edit tabs** to rename, remove or move tabs left/right, and **★ Edit items** to choose or rearrange the products in a group. In the full Item Library, ★ adds/removes an item from the selected group. In Library tap **Change group** to select which group the stars edit. **More → Edit Favorites tabs and groups** also opens the manager. This information stays in the device-local register backup, and existing single Favorites selections migrate automatically. This is not Square Favorites synchronization.
+
 **v1.2.1 Sandbox setup fix:** Connect Sandbox now displays a native setup/permissions dialog or clear SDK error. Open **More → Check Square connection status** to see whether the SDK is initialized, authorized, or unavailable. You must install the Android APK on the Zebra; browser previews cannot authorize payments. The bundled catalog remains a saved snapshot, not a live Square catalog sync.
 
 **New, separate Android repository.** The existing `lauries-creations-android-pos` GitHub repository is not changed.
@@ -8,7 +10,7 @@ A purple, touch-friendly Laurie’s Creations register for Zebra TC21 handhelds 
 
 ## Included in this starter
 
-- Square-inspired checkout interface: Favorites grid, searchable Item Library, custom-amount keypad, bottom Checkout / Activity / More navigation, and mobile sale drawer\n- A saved register snapshot with 29 item records and 102 modifier options is bundled. Fresh installs see the saved snapshot; existing installs can choose **More → Restore saved item library** to merge missing products without overwriting local prices or cart. This is NOT a live Square sync.\n- Original prices marked for review are blocked from checkout until the product is reviewed under Manage.\n- Fully branded register with responsive handheld / tablet layout
+- Square-inspired checkout interface: editable Favorites groups, searchable Item Library, custom-amount keypad, bottom Checkout / Activity / More navigation, and mobile sale drawer\n- A saved register snapshot with 29 item records and 102 modifier options is bundled. Fresh installs see the saved snapshot; existing installs can choose **More → Restore saved item library** to merge missing products without overwriting local prices or cart. This is NOT a live Square sync.\n- Original prices marked for review are blocked from checkout until the product is reviewed under Manage.\n- Fully branded register with responsive handheld / tablet layout
 - Confirmed catalog examples: Tumbler ($25) with Black OSU, White OSU, Black OU, White OU; Autism awareness ($1); Halloween bracelet ($3)
 - Ice cream product buttons with editable flavors, flavor availability, per-scoop upcharges, and flavor editing **after adding to the cart**
 - Editable product names, prices, categories, variations, and named modifier upcharges
