@@ -7,7 +7,7 @@ plugins {
 def sandboxId = providers.gradleProperty('squareSandboxAppId').orElse('').get()
 android {
     namespace 'com.lauriescreations.mobile'
-    compileSdk 35
+    compileSdk 36
     defaultConfig {
         applicationId 'com.lauriescreations.mobile'
         minSdk 28
