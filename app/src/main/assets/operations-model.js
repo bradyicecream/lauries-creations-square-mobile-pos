@@ -10,7 +10,7 @@
   function normalize(state){
     if(!state.operations||typeof state.operations!=='object')state.operations={};
     const o=state.operations;
-    for(const name of ['staff','timecards','inventoryHistory','cashSessions','salesRecords','customers','loyaltyEvents'])
+    for(const name of ['staff','timecards','inventoryHistory','cashSessions','cashMovements','salesRecords','customers','loyaltyEvents'])
       if(!Array.isArray(o[name]))o[name]=[];
     if(!o.inventory||typeof o.inventory!=='object'||Array.isArray(o.inventory))o.inventory={};
     if(!Object.prototype.hasOwnProperty.call(o,'activeStaffId'))o.activeStaffId=null;
@@ -79,7 +79,9 @@
     if(!session)return null;
     const receipts=o.salesRecords.filter(x=>x.method==='local-cash'&&x.sessionId===sessionId)
       .reduce((sum,x)=>sum+x.totalCents,0);
-    return session.openingCents+receipts;
+    const adjustments=o.cashMovements.filter(x=>x.sessionId===sessionId)
+      .reduce((sum,x)=>sum+x.amountCents,0);
+    return session.openingCents+receipts+adjustments;
   }
   function closeCash(s,counted){
     const o=normalize(s),session=currentCash(s);
@@ -88,6 +90,16 @@
     const expected=expectedCash(s,session.id),variance=counted-expected;
     session.closedAt=Date.now();session.countedCents=counted;session.expectedCents=expected;session.varianceCents=variance;
     return {ok:true,row:session,expected,variance};
+  }
+  function adjustCash(s,amount,reason){
+    const o=normalize(s),session=currentCash(s);
+    if(!session)return {ok:false,error:'Open a cash session first.'};
+    if(!Number.isSafeInteger(amount)||Math.abs(amount)>100000000||amount===0)
+      return {ok:false,error:'Enter a nonzero positive or negative cash amount.'};
+    reason=clean(reason);
+    if(!reason)return {ok:false,error:'Enter a reason for the cash adjustment.'};
+    const row={id:id(),sessionId:session.id,amountCents:amount,reason,at:Date.now()};
+    o.cashMovements.push(row);return {ok:true,row};
   }
   function addCustomer(s,label){
     const o=normalize(s);label=clean(label);if(!label)return {ok:false,error:'Enter an identifier or display name.'};
@@ -150,7 +162,7 @@
     return {ok:true,row};
   }
   const api={normalize,addStaff,clock,inventoryRecord,setInventory,available,quickCashAmounts,tipAmount,
-    openCash,currentCash,expectedCash,closeCash,addCustomer,adjustLoyalty,recordSale};
+    openCash,currentCash,expectedCash,closeCash,adjustCash,addCustomer,adjustLoyalty,recordSale};
   root.LaurieOperations=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
