@@ -58,7 +58,7 @@ assert.equal(ops.recordSale(s,'sandbox-card',0,null,'sq-2').ok,false,'Out of sto
 const snapshot=JSON.parse(JSON.stringify(s));ops.normalize(snapshot);
 assert.equal(snapshot.operations.salesRecords.length,2);
 assert.equal(snapshot.operations.staff.length,1);
-assert.equal(snapshot.operations.timecards.length,1);
+assert.equal(snapshot.operations.timecards.length,2,'Completed and active timecards persist');
 assert.equal(snapshot.operations.customers[0].points,30,'Loyalty points persisted in JSON backup');
 assert.equal(ops.adjustLoyalty(snapshot,cust.row.id,-31).ok,false,'Cannot redeem more points than available');
 assert.equal(ops.adjustLoyalty(snapshot,cust.row.id,-20).ok,true);
