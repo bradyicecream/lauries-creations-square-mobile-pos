@@ -20,6 +20,10 @@ jobs:
           node --check app/src/main/assets/favorite-groups.js
           node --check app/src/main/assets/modifier-groups.js
           node --check app/src/main/assets/register-cart.js
+          node --check app/src/main/assets/operations-model.js
+          node --check app/src/main/assets/operations-ui.js
+          node scripts/test-operations.cjs
+          node scripts/test-operations-ui.cjs
           node scripts/test-register-cart.cjs
           node scripts/test-register-layout.cjs
           node scripts/test-modifier-groups.cjs
@@ -107,16 +111,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          tag="v1.5.0-sandbox"
-          asset="Lauries-Creations-POS-v1.5.0-Sandbox.apk"
+          tag="v1.6.0-sandbox"
+          asset="Lauries-Creations-POS-v1.6.0-Sandbox.apk"
           cp app/build/outputs/apk/debug/app-debug.apk "/tmp/$asset"
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "Release $tag already exists; preserving the existing downloadable APK."
           else
             gh release create "$tag" "/tmp/$asset" \
               --target "$GITHUB_SHA" \
-              --title "Laurie's Creations POS v1.5 — Square-inspired Checkout" \
-              --notes "SANDBOX TEST VERSION — not for real payments. Redesigned Square-inspired checkout with cleaner catalog tiles, sidebar on Zebra tablets, responsive handheld sale drawer, one-tap simple items, quick quantity controls, item search inside Favorites, and editable sale notes. Previous Favorites, modifiers, products, device-local settings and Sandbox mock payments are retained. This is an independently branded Laurie’s Creations app, not official Square POS. No live Square Catalog sync or real payments. Includes previous saved item catalog and Square Sandbox setup diagnostics. Favorites and products are saved locally and do not sync with Square. Sandbox only; not real payments. Android 9 or newer required. This is a debug-signed APK; installation over older builds may fail if their signatures differ. Back up locally edited products and flavors before uninstalling." \
+              --title "Laurie's Creations POS v1.6 — Staff, Cash, Inventory & Tipping" \
+              --notes "SANDBOX TEST VERSION — not for real payments. Adds local staff/timecard records, item stock tracking with low-stock display, cash sessions including paid-in/paid-out, optional local customer loyalty tests, sale activity, customer-display preview, quick cash tender amounts and tipping wired to Square Sandbox tipMoney. Live Banking and Payment Links require a secure Square API backend and are not connected. Second-device display requires a relay. Local cash is not synced to Square. Retains Square-inspired checkout. Previous Favorites, modifiers, products, device-local settings and Sandbox mock payments are retained. This is an independently branded Laurie’s Creations app, not official Square POS. No live Square Catalog sync or real payments. Includes previous saved item catalog and Square Sandbox setup diagnostics. Favorites and products are saved locally and do not sync with Square. Sandbox only; not real payments. Android 9 or newer required. This is a debug-signed APK; installation over older builds may fail if their signatures differ. Back up locally edited products and flavors before uninstalling." \
               --prerelease
           fi
           echo "Download release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
