@@ -46,8 +46,8 @@
   ]},
   {id:'devices',name:'Hardware & devices',icon:'▤',entries:[
    ['reader','Reader connection','local','Square Sandbox connection and reader settings','reader'],
-   ['customerPreview','Customer display preview','preview','On-register preview only, not a live second device','display'],
-   ['displayPairing','Paired customer display','hardware','Needs authenticated device-to-device synchronization'],
+   ['customerPreview','Live customer display','local','Read-only cart on second iPad/Zebra over same Wi-Fi; Android APK only','display'],
+   ['displayPairing','Display pairing code','local','Open Live customer display to pair a second screen','display'],
    ['printers','Receipt & kitchen printers','hardware','Requires a supported device printer bridge'],
    ['cashDrawer','Cash drawer connection','hardware','Requires supported hardware and printer bridge'],
    ['scanner','Barcode & NFC scanner','hardware','Requires compatible device and verified scanner integration'],
