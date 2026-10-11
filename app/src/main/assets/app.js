@@ -130,6 +130,7 @@
     <label class="field">Base price in dollars (leave blank if unverified)<input id="productPrice" type="text" inputmode="decimal" value="${p?.price===null||p===null?'':(p.price/100).toFixed(2)}"></label>
     ${p?.source==='saved-snapshot'?`<label class="field"><input type="checkbox" id="priceConfirmed" ${p.reviewRequired?'':'checked'}> I verified prices and modifiers against current Square</label><p class="fine">This item was restored from the previous register, not synced from Square. Review variations and modifiers before charging.</p>`:''}
     <label class="field">Variations (one per line)<textarea id="productVariants" rows="4" style="width:100%">${e((p?.variants||[]).join('\n'))}</textarea></label>
+    <label class="field">Variation-specific prices (one per line: Variation|price in dollars)<textarea id="variationPriceLines" rows="4" style="width:100%" placeholder="Black OSU|25.00">${e((p?.variants||[]).map(v=>v+'|'+(p?.variantPrices?.[v]===null||p?.variantPrices?.[v]===undefined?'':(p.variantPrices[v]/100).toFixed(2))).join('\n'))}</textarea></label>
     <label class="field">Number of ice cream scoops (0–6)<input id="productScoops" type="number" min="0" max="6" value="${p?.scoops||0}"></label>
     <label class="field">Modifiers (one per line: name|upcharge in dollars)<textarea id="productExtras" rows="4" style="width:100%" placeholder="Gift wrap|1.00">${e((p?.extras||[]).map(x=>x.name+'|'+(x.price/100).toFixed(2)).join('\n'))}</textarea></label>
     <p class="fine">Only prices you enter are used for new cart items. Existing cart items keep their previous price until edited.</p>`,[
@@ -143,6 +144,13 @@
           const pieces=line.split('|');const name=pieces[0]?.trim();const amount=moneyIn(pieces[1]);if(!name||amount===null||Number.isNaN(amount)){toast('Invalid modifier. Use name|1.00');return;}extras.push({name,price:amount});
         }
         const variantPrices=Object.fromEntries(variants.map(v=>[v,p?.variantPrices?.[v]??price]));
+        for(const line of $('variationPriceLines').value.split('\n').map(x=>x.trim()).filter(Boolean)){
+          const split=line.indexOf('|');
+          if(split<1){toast('Variation prices must use Name|0.00');return;}
+          const variant=line.slice(0,split).trim(),amount=moneyIn(line.slice(split+1));
+          if(!variants.includes(variant)||Number.isNaN(amount)){toast('Check variation name and price: '+variant);return;}
+          variantPrices[variant]=amount;
+        }
         const value={id:p?.id||makeId(),name,category:cat,icon:$('productIcon').value.trim()||'🧵',price,variants,variantPrices,scoops,extras,
           modifierGroups:p?.modifierGroups||[],source:p?.source||'local',reviewRequired:p?.source==='saved-snapshot'?!($('priceConfirmed')?.checked):false};
         if(p)state.products=state.products.map(x=>x.id===id?value:x);else state.products.push(value);
