@@ -28,7 +28,9 @@ assert.ok(js.includes("operationsApi.available"),'Inventory guard during item ad
 assert.ok(kotlin.includes('tipCents: Int'),'Native bridge takes tip cents');
 assert.ok(kotlin.includes('builder.tipMoney(Money(tipCents.toLong(), CurrencyCode.USD))'),'SDK tipMoney used');
 assert.ok(kotlin.includes('amount = Money(amountCents.toLong(), CurrencyCode.USD)'),'SDK base amount excludes tip');
-assert.ok(op.includes('a separate secure backend'),'Second display clearly marked not live');
+assert.ok(op.includes('Live customer-facing display'),'Live customer screen is available in Android APK');
+assert.ok(op.includes('details.pairingCode'),'Second-screen access requires a pairing code');
+assert.ok(op.includes('not an internet-hosted Square customer display'),'Local-only scope clearly labeled');
 assert.ok(op.includes('Square Checkout API'),'Payment links clearly gated');
 assert.ok(!html.includes('O.P. Gallo'),'Laurie-only branding');
 console.log('Operations UI, native tip bridge, local payment safety and Square connection boundaries passed.');
