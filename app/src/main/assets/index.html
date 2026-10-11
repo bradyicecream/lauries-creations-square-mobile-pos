@@ -20,11 +20,18 @@
         <div><h2>Checkout</h2><p id="catalogHint">Tap a favorite to add it to this sale.</p></div>
         <button id="newProduct" class="secondary small-action" type="button">＋ Item</button>
       </div>
-      <nav class="registerTabs" id="registerTabs" aria-label="Checkout views">
-        <button type="button" class="active" data-register-tab="favorites" aria-selected="true">▦ Favorites</button>
-        <button type="button" data-register-tab="keypad" aria-selected="false">▤ Keypad</button>
-        <button type="button" data-register-tab="library" aria-selected="false">☰ Library</button>
-      </nav>
+      <div class="favoriteTabRow">
+        <nav class="registerTabs" id="registerTabs" aria-label="Favorite groups and checkout views">
+          <button type="button" class="active" data-register-tab="favorites">★ Favorites</button>
+          <button type="button" data-register-tab="keypad">▤ Keypad</button>
+          <button type="button" data-register-tab="library">☰ Library</button>
+        </nav>
+        <button type="button" id="manageFavoriteTabs" class="manageTabsButton" aria-label="Edit favorites tabs">⚙ Edit tabs</button>
+      </div>
+      <div id="favoritesToolbar" class="favoritesToolbar">
+        <div><strong id="currentFavoriteName">Favorites</strong><small>Choose items in this group.</small></div>
+        <button type="button" id="editActiveFavorites" class="secondary small-action">★ Edit items</button>
+      </div>
       <div class="searchbar" id="searchWrap" hidden>
         <span aria-hidden="true">⌕</span><input id="itemSearch" type="search" autocomplete="off" placeholder="Search items and variations" aria-label="Search item library">
       </div>
@@ -41,7 +48,7 @@
         <button id="addCustomAmount" type="button" class="primary full" disabled>Add custom amount to sale</button>
         <p class="fine">Custom amounts remain local to this register until a Square checkout is completed.</p>
       </div>
-      <div class="catalogfoot">★ Edit your Favorites with the stars in the Item Library. Products, prices and modifiers can be managed under More.</div>
+      <div class="catalogfoot">Create your own Favorites tabs, edit each group and rearrange items. Changes are saved on this device; Square does not sync Favorites tabs.</div>
     </section>
     <aside class="cartpane" id="cartPane" aria-label="Current sale">
       <div class="cartHeader"><div><h2>Current sale</h2><small id="cartItemCount">0 items</small></div><div class="cartHeaderActions"><button id="clearCart" class="linkbtn" type="button">Clear</button><button id="closeCart" class="iconButton mobileOnly" type="button" aria-label="Close sale">✕</button></div></div>
@@ -63,7 +70,7 @@
   </section>
   <section class="utilityPane" id="morePanel" hidden aria-label="More options">
     <h2>More</h2>
-    <div class="utilityCard"><h3>Register</h3><button id="manageFromMore" type="button" class="utilityRow">⚙ &nbsp; Products, modifiers &amp; tax <span>›</span></button><button id="flavorsFromMore" type="button" class="utilityRow">🍦 &nbsp; Ice cream flavors <span>›</span></button><button id="newFromMore" type="button" class="utilityRow">＋ &nbsp; Create item <span>›</span></button><button id="restoreCatalog" type="button" class="utilityRow">↻ &nbsp; Restore saved item library <span>›</span></button><p class="fine">Restore items from the previous Laurie’s Creations register snapshot. This is not live Square synchronization.</p></div>
+    <div class="utilityCard"><h3>Register</h3><button id="manageFromMore" type="button" class="utilityRow">⚙ &nbsp; Products, modifiers &amp; tax <span>›</span></button><button id="flavorsFromMore" type="button" class="utilityRow">🍦 &nbsp; Ice cream flavors <span>›</span></button><button id="newFromMore" type="button" class="utilityRow">＋ &nbsp; Create item <span>›</span></button><button id="favoriteGroupsFromMore" type="button" class="utilityRow">★ &nbsp; Edit Favorites tabs and groups <span>›</span></button><button id="restoreCatalog" type="button" class="utilityRow">↻ &nbsp; Restore saved item library <span>›</span></button><p class="fine">Restore items from the previous Laurie’s Creations register snapshot. This is not live Square synchronization.</p></div>
     <div class="utilityCard"><h3>Square Sandbox</h3><p class="fine">Connection and reader tools work in the installed Android app.</p><div class="bottomActions"><button id="squareConnect" type="button" class="secondary">Connect Sandbox</button><button id="readerSettings" type="button" class="secondary">Reader settings</button></div><button id="squareDiagnostic" type="button" class="utilityRow">ⓘ &nbsp; Check Square connection status <span>›</span></button></div>
   </section>
 </main>
