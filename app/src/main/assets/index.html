@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="square-register.css">
 <link rel="stylesheet" href="operations.css">
 <link rel="stylesheet" href="checkout-square-grid.css">
+<link rel="stylesheet" href="settings-addons.css">
 </head>
 <body>
 <header class="topbar">
@@ -89,8 +90,15 @@
   </section>
   <section class="utilityPane" id="morePanel" hidden aria-label="More options">
     <h2>More</h2>
+    <div class="utilityCard settingsHubCard">
+      <h3>Settings &amp; add-ons</h3>
+      <p class="fine">Browse checkout, hardware, payments, inventory, staff, customer and business settings. Local controls and connection-only features are clearly labeled.</p>
+      <button id="settingsAndAddons" class="utilityRow" type="button"><span aria-hidden="true">⚙</span> &nbsp; All settings &amp; add-ons <span>›</span></button>
+      <button id="registerPrefsFromMore" class="utilityRow" type="button"><span aria-hidden="true">▦</span> &nbsp; Register preferences <span>›</span></button>
+      <p class="fine">Some Square services require subscriptions or secure server integrations and are not activated in this app.</p>
+    </div>
     <div class="utilityCard"><h3>Register</h3><button id="manageFromMore" type="button" class="utilityRow">⚙ &nbsp; Products &amp; modifiers <span>›</span></button><button id="flavorsFromMore" type="button" class="utilityRow">🍦 &nbsp; Ice cream flavors <span>›</span></button><button id="modifierGroupsFromMore" type="button" class="utilityRow">🧩 &nbsp; Modifier groups — all categories <span>›</span></button><button id="chargesFromMore" type="button" class="utilityRow">％ &nbsp; Gratuity &amp; service charge <span>›</span></button><button id="newFromMore" type="button" class="utilityRow">＋ &nbsp; Create item <span>›</span></button><button id="favoriteGroupsFromMore" type="button" class="utilityRow">★ &nbsp; Edit Favorites tabs and groups <span>›</span></button><button id="restoreCatalog" type="button" class="utilityRow">↻ &nbsp; Restore saved item library <span>›</span></button><p class="fine">Restore items from the previous Laurie’s Creations register snapshot. This is not live Square synchronization.</p></div>
-    <div class="utilityCard"><h3>Business tools</h3><p class="fine">Device-local management tools for testing. Export a register backup from Products, modifiers &amp; tax before reinstalling.</p>
+    <div class="utilityCard"><h3>Business tools</h3><p class="fine">Device-local management tools for testing. Export a register backup from Products &amp; modifiers before reinstalling.</p>
       <button id="staffTool" type="button" class="utilityRow">👥 &nbsp; Staff &amp; time cards <span>›</span></button>
       <button id="inventoryTool" type="button" class="utilityRow">📦 &nbsp; Inventory tracking <span>›</span></button>
       <button id="displayTool" type="button" class="utilityRow">📺 &nbsp; Customer display preview <span>›</span></button>
@@ -120,6 +128,8 @@
 <script src="modifier-groups.js"></script>
 <script src="register-cart.js"></script>
 <script src="register-grid.js"></script>
+<script src="settings-addons.js"></script>
+<script src="settings-addons-ui.js"></script>
 <script src="checkout-charges.js"></script>
 <script src="operations-model.js"></script>
 <script src="operations-ui.js"></script>
