@@ -16,8 +16,12 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Configure Android SDK command-line tools
+        uses: android-actions/setup-android@v3
       - name: Android SDK 35
+        shell: bash
         run: |
+          sdkmanager --version
           sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
       - name: Install Gradle 8.13
         uses: gradle/actions/setup-gradle@v4
