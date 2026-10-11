@@ -20,6 +20,8 @@ jobs:
           node --check app/src/main/assets/favorite-groups.js
           node --check app/src/main/assets/modifier-groups.js
           node --check app/src/main/assets/register-cart.js
+          node --check app/src/main/assets/register-grid.js
+          node scripts/test-register-grid.cjs
           node --check app/src/main/assets/operations-model.js
           node --check app/src/main/assets/operations-ui.js
           node --check app/src/main/assets/checkout-charges.js
@@ -113,16 +115,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          tag="v1.8.0-sandbox"
-          asset="Lauries-Creations-POS-v1.8.0-Sandbox.apk"
+          tag="v1.9.0-sandbox"
+          asset="Lauries-Creations-POS-v1.9.0-Sandbox.apk"
           cp app/build/outputs/apk/debug/app-debug.apk "/tmp/$asset"
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "Release $tag already exists; preserving the existing downloadable APK."
           else
             gh release create "$tag" "/tmp/$asset" \
               --target "$GITHUB_SHA" \
-              --title "Laurie's Creations POS v1.8 — Card-only Gratuity, Zero Tax" \
-              --notes "SANDBOX TEST VERSION — not for real payments. Removes all tax calculations on new sales and the tax settings interface. Required Gratuity is displayed only as Gratuity and applies exclusively to Square Sandbox card checkouts, not local cash sales. Separate service charges can apply to both. Checkout and preview show payment-method-specific totals, cash quick amounts exclude Gratuity, and tests validate local ledger and Sandbox base amounts. Required card-only fees may be regulated as surcharges; do not use for live payments. v1.7 features retained. Live Banking and Payment Links require a secure Square API backend and are not connected. Second-device display requires a relay. Local cash is not synced to Square. Retains Square-inspired checkout. Previous Favorites, modifiers, products, device-local settings and Sandbox mock payments are retained. This is an independently branded Laurie’s Creations app, not official Square POS. No live Square Catalog sync or real payments. Includes previous saved item catalog and Square Sandbox setup diagnostics. Favorites and products are saved locally and do not sync with Square. Sandbox only; not real payments. Android 9 or newer required. This is a debug-signed APK; installation over older builds may fail if their signatures differ. Back up locally edited products and flavors before uninstalling." \
+              --title "Laurie's Creations POS v1.9 — Square-inspired Editable Grid" \
+              --notes "SANDBOX TEST VERSION — not for real payments. Reworks checkout with compact Square-style colored item tiles, editable tile pages, category and custom amount shortcuts, blank add-tile slots, customizable tile colors and positions, and bottom navigation on Zebra tablet and handheld displays. Existing local Favorites, modifiers, inventory, no-tax and card-only Gratuity settings remain. The app is independently branded and supports Sandbox test payments only. No live Square catalog sync. Separate service charges can apply to both. Checkout and preview show payment-method-specific totals, cash quick amounts exclude Gratuity, and tests validate local ledger and Sandbox base amounts. Required card-only fees may be regulated as surcharges; do not use for live payments. v1.7 features retained. Live Banking and Payment Links require a secure Square API backend and are not connected. Second-device display requires a relay. Local cash is not synced to Square. Retains Square-inspired checkout. Previous Favorites, modifiers, products, device-local settings and Sandbox mock payments are retained. This is an independently branded Laurie’s Creations app, not official Square POS. No live Square Catalog sync or real payments. Includes previous saved item catalog and Square Sandbox setup diagnostics. Favorites and products are saved locally and do not sync with Square. Sandbox only; not real payments. Android 9 or newer required. This is a debug-signed APK; installation over older builds may fail if their signatures differ. Back up locally edited products and flavors before uninstalling." \
               --prerelease
           fi
           echo "Download release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"

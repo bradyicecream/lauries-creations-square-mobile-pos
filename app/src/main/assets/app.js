@@ -27,6 +27,8 @@
   if(!Array.isArray(state.products)||!Array.isArray(state.cart)||!Array.isArray(state.flavors))state=defaultState();
   const groupsApi=window.LaurieFavoriteGroups;
   groupsApi.normalize(state); // Migrates older single Favorites lists without deleting them.
+  const gridApi=window.LaurieRegisterGrid;
+  gridApi.normalize(state); // Keep user Favorites, order, colors and shortcuts through upgrades.
   const modifiersApi=window.LaurieModifierGroups;
   const cartApi=window.LaurieRegisterCart;
   modifiersApi.normalize(state); // Preserves and migrates saved per-product modifier groups.
@@ -48,6 +50,7 @@
   function toast(msg){const t=$('toast');t.textContent=msg;t.style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.style.display='none',3800);}
   let category='All';
   let registerTab='favorites';
+  let gridEditMode=false;
   let activeNav='checkout';
   let searchText='';
   let amountDigits='';
@@ -57,66 +60,103 @@
   function closeModal(){$('dialog').close();}
   $('closeDialog').addEventListener('click',closeModal);
   $('dialogForm').addEventListener('submit',ev=>ev.preventDefault());
+  function tileInitial(label){
+    const words=String(label||'Item').trim().split(/\s+/).filter(Boolean);
+    const letters=words.length>1?words.slice(0,2).map(w=>w[0]).join(''):words[0].slice(0,2);
+    return letters.toUpperCase();
+  }
+  function renderSquareTile(tile,group){
+    const p=tile.type==='item'?state.products.find(x=>x.id===tile.productId):null;
+    if(tile.type==='item'&&!p)return '';
+    const title=tile.type==='item'?p.name:tile.type==='category'?tile.category:'Custom amount';
+    const stock=p?operationsApi.inventoryRecord(state,p.id):null;
+    const stockText=stock?.enabled?(stock.quantity>0?stock.quantity+' in stock':'Out of stock'):'';
+    const bottom=tile.type==='item'
+      ?(p.price===null?'PRICE NEEDED':format(p.price))+(stockText?' · '+stockText:'')
+      :tile.type==='category'?'Category · Browse items':'Enter an amount';
+    const icon=tile.type==='category'?'▦':tile.type==='custom-amount'?'$':tileInitial(title);
+    const action=gridEditMode?`data-edit-tile="${e(tile.id)}"`
+      :tile.type==='item'?`data-product="${e(p.id)}"`
+      :tile.type==='category'?`data-open-category="${e(tile.category)}"`:'data-open-amount="true"';
+    return `<div class="squareGridTile" role="listitem">
+      <button type="button" class="squareTile swatch-${e(tile.color)} ${gridEditMode?'isEditing':''}"
+        ${action} aria-label="${e((gridEditMode?'Edit ': 'Open ')+title)}" title="${e(title)}">
+        <span class="squareTileFace"><span class="squareTileInitial" aria-hidden="true">${e(icon)}</span>
+          ${gridEditMode?'<span class="tileEditPencil" aria-hidden="true">✎</span>':''}</span>
+        <span class="squareTileCaption"><strong>${e(title)}</strong><small>${e(bottom)}</small></span>
+      </button>
+    </div>`;
+  }
   function catalog(){
-    // If a utility view is hidden while active, return safely to Favorites.
     if((registerTab==='keypad'&&!groupsApi.isUtilityTabVisible(state,'keypad'))||
-       (registerTab==='library'&&!groupsApi.isUtilityTabVisible(state,'library'))){
-      registerTab='favorites';
-    }
-    const currentGroup=groupsApi.active(state);
-    const tabBar=$('registerTabs');
+       (registerTab==='library'&&!groupsApi.isUtilityTabVisible(state,'library')))registerTab='favorites';
+    const currentGroup=groupsApi.active(state),tabBar=$('registerTabs');
     const previousScroll=tabBar.scrollLeft;
     const names=state.favoriteGroups.map(g=>{
-      const selected=registerTab==='favorites'&&currentGroup.id===g.id;
-      return `<button type="button" data-group-id="${e(g.id)}" class="${selected?'active':''}" aria-selected="${selected}" title="${e(g.name)}">★ ${e(g.name)}</button>`;
+      const selected=registerTab==='favorites'&&g.id===currentGroup.id;
+      return `<button type="button" data-group-id="${e(g.id)}" class="${selected?'active':''}" aria-selected="${selected}" title="${e(g.name)}">${e(g.name)}</button>`;
     }).join('');
     tabBar.innerHTML=names+
-      `<button type="button" class="newGroupTab" data-create-favorite-group="true" title="Create new Favorites tab">＋ Tab</button>`+
-      (groupsApi.isUtilityTabVisible(state,'keypad')
-        ?`<button type="button" data-register-tab="keypad" class="${registerTab==='keypad'?'active':''}" aria-selected="${registerTab==='keypad'}">▤ Keypad</button>`:'')+
-      (groupsApi.isUtilityTabVisible(state,'library')
-        ?`<button type="button" data-register-tab="library" class="${registerTab==='library'?'active':''}" aria-selected="${registerTab==='library'}">☰ Library</button>`:'');
+      `<button type="button" class="newGroupTab" data-create-favorite-group="true" title="Create a Favorites page">＋ Page</button>`+
+      (groupsApi.isUtilityTabVisible(state,'keypad')?
+        `<button type="button" data-register-tab="keypad" class="${registerTab==='keypad'?'active':''}" aria-selected="${registerTab==='keypad'}">Keypad</button>`:'')+
+      (groupsApi.isUtilityTabVisible(state,'library')?
+        `<button type="button" data-register-tab="library" class="${registerTab==='library'?'active':''}" aria-selected="${registerTab==='library'}">Library</button>`:'');
     tabBar.scrollLeft=previousScroll;
-    const selectedGroupName=currentGroup.name;
     $('favoritesToolbar').hidden=registerTab!=='favorites';
-    $('currentFavoriteName').textContent=selectedGroupName;
+    $('currentFavoriteName').textContent=currentGroup.name;
+    $('gridModeDescription').textContent=gridEditMode?'Editing tiles on this page':'Tap a tile to add it to the sale';
+    $('editGridLayout').textContent=gridEditMode?'✓ Done':'✎ Edit grid';
+    $('editGridLayout').classList.toggle('gridModeActive',gridEditMode);
+    $('gridEditHelp').hidden=!(gridEditMode&&registerTab==='favorites');
     $('libraryFavoritesTarget').hidden=registerTab!=='library';
-    $('libraryFavoriteGroupName').textContent='★ Adding to: '+selectedGroupName;
-    const tabHint=registerTab==='favorites'
-      ?'Tap an item to add it to the sale. Edit Items changes this tab, not your Square catalog.'
-      :registerTab==='keypad'?'Enter a custom dollar amount.'
-      :'Browse all your items. ★ adds an item to the selected Favorites tab.';
-    $('catalogHint').textContent=tabHint;
-    $('searchWrap').hidden=registerTab==='keypad';
-    $('itemSearch').placeholder=registerTab==='favorites'?'Search '+currentGroup.name:'Search the item library';
+    $('libraryFavoriteGroupName').textContent='★ Adding to: '+currentGroup.name;
+    $('catalogHint').textContent=registerTab==='favorites'?
+      (gridEditMode?'Add, color, move or remove tiles from your Favorites grid.':'Tap a tile to add items to the current sale.'):
+      registerTab==='keypad'?'Enter a custom dollar amount.':'Browse all items or search by category.';
+    $('searchWrap').hidden=registerTab==='keypad'||(registerTab==='favorites'&&gridEditMode);
+    $('itemSearch').placeholder=registerTab==='favorites'?'Search '+currentGroup.name:'Search the Item Library';
     $('categories').hidden=registerTab!=='library';
     $('productGrid').hidden=registerTab==='keypad';
     $('keypadPanel').hidden=registerTab!=='keypad';
-    const cats=['All',...new Set(state.products.map(x=>x.category||'Other'))];
-    if(!cats.includes(category))category='All';
-    $('categories').innerHTML=cats.map(x=>`<button class="chip ${x===category?'active':''}" data-cat="${e(x)}">${e(x)}</button>`).join('');
-    let products=[];
+    const categories=['All',...new Set(state.products.map(p=>p.category||'Other'))];
+    if(!categories.includes(category))category='All';
+    $('categories').innerHTML=categories.map(x=>
+      `<button class="chip ${x===category?'active':''}" data-cat="${e(x)}">${e(x)}</button>`).join('');
+    const q=searchText.toLowerCase().trim();
     if(registerTab==='favorites'){
-      const q=searchText.toLowerCase().trim();
-      products=currentGroup.productIds.map(id=>state.products.find(p=>p.id===id)).filter(Boolean)
-        .filter(p=>!q||[p.name,p.category,...(p.variants||[])].join(' ').toLowerCase().includes(q));
+      const tiles=gridApi.tiles(state,currentGroup.id);
+      const matching=gridEditMode?tiles:tiles.filter(tile=>{
+        const p=state.products.find(x=>x.id===tile.productId);
+        const title=tile.type==='item'?p?.name:tile.type==='category'?tile.category:'Custom amount';
+        return !q||[title,p?.category].filter(Boolean).join(' ').toLowerCase().includes(q);
+      });
+      const placeholders=q&&!gridEditMode?0:Math.max(0,Math.min((window.innerWidth<500?6:20)-matching.length,window.innerWidth<500?2:12));
+      $('productGrid').classList.remove('libraryListView');
+      $('productGrid').classList.add('squareTileGrid');
+      $('productGrid').setAttribute('aria-label',currentGroup.name+' tile grid');
+      $('productGrid').innerHTML=matching.map(tile=>renderSquareTile(tile,currentGroup)).join('')+
+        Array.from({length:placeholders},(_,index)=>gridEditMode
+          ?`<button type="button" class="squareTileEmpty squareTileAdd" data-add-grid-tile="true" aria-label="Add a tile to the grid"><span>＋</span><small>Add tile</small></button>`
+          :'<div class="squareTileEmpty" aria-hidden="true"></div>').join('')+
+        (matching.length===0&&!placeholders?'<p class="empty">No matching tiles. Clear your search to see more.</p>':'');
     }else if(registerTab==='library'){
-      const q=searchText.toLowerCase().trim();
-      products=state.products.filter(p=>(category==='All'||p.category===category)
-        &&(!q||[p.name,p.category,...(p.variants||[])].join(' ').toLowerCase().includes(q)));
-    }
-    $('productGrid').setAttribute('aria-label',registerTab==='favorites'?currentGroup.name+' favorites':'Item library');
-    $('productGrid').innerHTML=products.length?products.map(p=>`
-      <div class="productTile">
+      const products=state.products.filter(p=>(category==='All'||p.category===category)&&
+        (!q||[p.name,p.category,...(p.variants||[])].join(' ').toLowerCase().includes(q)));
+      $('productGrid').classList.remove('squareTileGrid');
+      $('productGrid').classList.add('libraryListView');
+      $('productGrid').setAttribute('aria-label','Item Library');
+      $('productGrid').innerHTML=products.length?products.map(p=>`<div class="productTile">
         <button class="product" type="button" data-product="${e(p.id)}" aria-label="Add ${e(p.name)}">
           <span class="emoji" aria-hidden="true">${e(p.icon||'🧵')}</span>
-          <span class="tileInfo"><span class="name">${e(p.name)}</span><span class="tileMeta">${e(p.category||'Item')}${operationsApi.inventoryRecord(state,p.id).enabled?
-  ' · '+(operationsApi.inventoryRecord(state,p.id).quantity?'In stock: '+operationsApi.inventoryRecord(state,p.id).quantity:'Out of stock'):''}</span></span>
-          <span class="${p.price===null?'unverified':'price'}">${format(p.price)}${p.scoops?' · '+p.scoops+' scoop'+(p.scoops>1?'s':''):''}</span>
+          <span class="tileInfo"><span class="name">${e(p.name)}</span><span class="tileMeta">${e(p.category||'Other')}</span></span>
+          <span class="${p.price===null?'unverified':'price'}">${format(p.price)}</span>
         </button>
-        ${registerTab==='library'?`<button type="button" class="favoriteToggle ${currentGroup.productIds.includes(p.id)?'active':''}" data-favorite="${e(p.id)}" aria-label="${currentGroup.productIds.includes(p.id)?'Remove from':'Add to'} ${e(currentGroup.name)}" aria-pressed="${currentGroup.productIds.includes(p.id)}">${currentGroup.productIds.includes(p.id)?'★':'☆'}</button>`:''}
-      </div>`).join(''):registerTab!=='keypad'
-        ?(searchText?'<p class="empty">No matching items. Clear the search to see more.</p>':'<p class="empty">No items in this group yet. Tap Edit items to add favorites.</p>'):'';
+        <button type="button" class="favoriteToggle ${currentGroup.productIds.includes(p.id)?'active':''}"
+          data-favorite="${e(p.id)}" aria-label="${currentGroup.productIds.includes(p.id)?'Remove from':'Add to'} ${e(currentGroup.name)}"
+          aria-pressed="${currentGroup.productIds.includes(p.id)}">${currentGroup.productIds.includes(p.id)?'★':'☆'}</button>
+      </div>`).join(''):'<p class="empty">No items found in this category.</p>';
+    }
     $('keypadAmount').textContent=format(Number(amountDigits||'0'));
     $('addCustomAmount').disabled=!Number(amountDigits||0)||Number(amountDigits)>1000000;
   }
@@ -438,7 +478,7 @@
       {label:'Done',kind:'primary',click:closeModal}
 ]);
   }
-  $('importFile').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{const src=JSON.parse(await file.text());if(!Array.isArray(src.products)||!Array.isArray(src.flavors)||!Array.isArray(src.cart))throw Error('Invalid backup');if(!confirm('Replace your current register settings and cart with this backup?'))return;state=src;groupsApi.normalize(state);modifiersApi.normalize(state);operationsApi.normalize(state);chargesApi.normalize(state);state.taxPercent=0;initOperationsUI();state.saleId=makeId();state.paidSaleId=null;state.pendingSquare=null;save();closeModal();render();toast('Backup restored — verify prices');}catch(_){toast('Could not import this backup');}finally{ev.target.value='';}});
+  $('importFile').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{const src=JSON.parse(await file.text());if(!Array.isArray(src.products)||!Array.isArray(src.flavors)||!Array.isArray(src.cart))throw Error('Invalid backup');if(!confirm('Replace your current register settings and cart with this backup?'))return;state=src;groupsApi.normalize(state);gridApi.normalize(state);modifiersApi.normalize(state);operationsApi.normalize(state);chargesApi.normalize(state);state.taxPercent=0;initOperationsUI();state.saleId=makeId();state.paidSaleId=null;state.pendingSquare=null;save();closeModal();render();toast('Backup restored — verify prices');}catch(_){toast('Could not import this backup');}finally{ev.target.value='';}});
   function squareState(){try{return window.LaurieSquare?.squareState?.()||'browser-preview';}catch(_){return 'unavailable';}}
   function syncSquareStatus(){const v=squareState(),text={'not-configured':'Add Sandbox app ID','unauthorized-sandbox':'Sandbox not connected','authorized-sandbox':'Sandbox connected','browser-preview':'Browser preview only','unavailable':'Square unavailable'};$('sqStatus').textContent=text[v]||v;}
   window.receiveSquareEvent=function(payload){let msg;try{msg=JSON.parse(payload);}catch(_){return;}
@@ -465,7 +505,18 @@
     }
   };
   $('categories').addEventListener('click',ev=>{const b=ev.target.closest('[data-cat]');if(b){category=b.dataset.cat;catalog();}});
-  $('productGrid').addEventListener('click',ev=>{const b=ev.target.closest('[data-product]');if(b)addFromGrid(b.dataset.product);});
+  $('productGrid').addEventListener('click',ev=>{
+    const edit=ev.target.closest('[data-edit-tile]');
+    if(edit){openGridTileEditor(edit.dataset.editTile);return;}
+    const add=ev.target.closest('[data-add-grid-tile]');
+    if(add){openGridTilePicker();return;}
+    const categoryButton=ev.target.closest('[data-open-category]');
+    if(categoryButton){openCategoryGrid(categoryButton.dataset.openCategory);return;}
+    const amount=ev.target.closest('[data-open-amount]');
+    if(amount){addGridCustomAmount();return;}
+    const item=ev.target.closest('[data-product]');
+    if(item)addFromGrid(item.dataset.product);
+  });
   $('cartList').addEventListener('click',ev=>{
     const edit=ev.target.closest('[data-edit-cart]');
     const increase=ev.target.closest('[data-inc-cart]');
@@ -568,6 +619,119 @@
       }}
     ]);
   }
+  function openCategoryGrid(categoryName){
+    const products=state.products.filter(p=>p.category===categoryName);
+    openModal(categoryName,
+      '<p class="favoriteManagerHelp">Choose an item from this category. Item variations and modifiers will open as usual.</p>'+
+      '<div class="squareCategoryPicker">'+products.map(p=>
+        `<button type="button" class="squareChoiceRow" data-category-product="${e(p.id)}">
+          <span class="squareCategoryIcon">${e(p.icon||'▦')}</span>
+          <span><strong>${e(p.name)}</strong><small>${e(p.category||'Item')}</small></span>
+          <b>${format(p.price)}</b>
+        </button>`).join('')+'</div>',[{label:'Close',click:closeModal}]);
+  }
+  function addGridCustomAmount(){
+    if(state.pendingSquare){toast('Wait for Square to finish the test payment.');return;}
+    if(state.paidSaleId===state.saleId){toast('Clear the completed sale to begin a new sale.');return;}
+    openModal('Custom amount',
+      '<label class="field">Amount ($)<input id="squareGridAmount" type="text" inputmode="decimal" placeholder="0.00"></label>'+
+      '<p class="fine">Add an amount directly to the current sale without showing the Keypad tab.</p>',[
+      {label:'Cancel',click:closeModal},
+      {label:'Add to sale',kind:'primary',click:()=>{
+        const cents=moneyIn($('squareGridAmount').value);
+        if(!Number.isSafeInteger(cents)||cents<=0||cents>1000000){
+          toast('Enter an amount from $0.01 to $10,000.00');return;
+        }
+        state.cart.push({key:makeId(),productId:'manual',name:'Custom amount',
+          variant:'',flavors:[],extras:[],price:cents,qty:1});
+        save();closeModal();render();toast('Custom amount added');
+      }}
+    ]);
+  }
+  function openGridTilePicker(){
+    const group=groupsApi.active(state),onPage=new Set(gridApi.tiles(state,group.id)
+      .filter(x=>x.type==='item').map(x=>x.productId));
+    const available=state.products.filter(p=>!onPage.has(p.id)).slice()
+      .sort((a,b)=>a.name.localeCompare(b.name));
+    const categories=[...new Set(state.products.map(p=>p.category).filter(Boolean))].sort();
+    const content='<p class="favoriteManagerHelp">Add an item, a category shortcut, or a Custom Amount button. Square-style grid shortcuts are saved on this device only.</p>'+
+      '<label class="field">Find an item<input type="search" id="gridTileSearch" placeholder="Search items"></label>'+
+      '<div class="squarePickerList" id="gridTileItemList">'+available.map(p=>
+        `<button type="button" class="squareChoiceRow" data-pick-grid-item="${e(p.id)}">
+          <span class="squareCategoryIcon">${e(p.icon||'▦')}</span>
+          <span><strong>${e(p.name)}</strong><small>${e(p.category||'Item')}</small></span>
+          <b>${format(p.price)}</b>
+        </button>`).join('')+'</div>'+
+      '<h3 class="opsMiniHeading">Category shortcuts</h3>'+
+      '<div class="squareShortcutPills">'+categories.map(cat=>
+        `<button type="button" class="secondary" data-pick-grid-category="${e(cat)}">${e(cat)}</button>`).join('')+'</div>'+
+      '<h3 class="opsMiniHeading">Custom shortcut</h3>'+
+      '<button type="button" class="squareChoiceRow" data-pick-grid-amount="true">＋ Custom amount <span>›</span></button>';
+    openModal('Add a grid tile',content,[{label:'Cancel',click:closeModal}]);
+    $('gridTileSearch').oninput=ev=>{
+      const query=ev.target.value.trim().toLowerCase();
+      for(const btn of $('gridTileItemList').querySelectorAll('.squareChoiceRow'))
+        btn.hidden=Boolean(query)&&!btn.textContent.toLowerCase().includes(query);
+    };
+  }
+  function openGridTileEditor(tileId){
+    const group=groupsApi.active(state),page=gridApi.tiles(state,group.id);
+    const tile=page.find(t=>t.id===tileId);
+    if(!tile)return;
+    const product=tile.type==='item'?state.products.find(p=>p.id===tile.productId):null;
+    const title=tile.type==='item'?product?.name:tile.type==='category'?tile.category:'Custom amount';
+    const palette=gridApi.COLORS.map(color=>
+      `<button type="button" class="gridPaletteColor swatch-${e(color)} ${tile.color===color?'selected':''}"
+        data-grid-color="${e(color)}" data-grid-tile-id="${e(tile.id)}"
+        aria-label="Use ${e(color)} tile color" title="${e(color)}"></button>`).join('');
+    const index=page.findIndex(t=>t.id===tileId);
+    openModal('Edit tile · '+title,
+      '<p class="favoriteManagerHelp">Change the tile color or move this shortcut in the grid. Removing a tile never deletes the actual item from your Library.</p>'+
+      '<h3 class="opsMiniHeading">Tile color</h3><div class="gridPalette">'+palette+'</div>'+
+      '<h3 class="opsMiniHeading">Position</h3>'+
+      `<div class="gridEditMoves"><button type="button" class="secondary" data-grid-move="-1" data-grid-tile-id="${e(tile.id)}" ${index===0?'disabled':''}>← Move left</button>
+        <button type="button" class="secondary" data-grid-move="1" data-grid-tile-id="${e(tile.id)}" ${index===page.length-1?'disabled':''}>Move right →</button></div>`,[
+        {label:'Remove from grid',click:()=>{
+          if(!gridApi.removeTile(state,group.id,tile.id))return;
+          save();closeModal();catalog();toast('Tile removed from Favorites');
+        }},
+        {label:'Done',kind:'primary',click:closeModal}
+      ]);
+  }
+  function handleGridManagerClick(button){
+    const group=groupsApi.active(state),id=group.id;
+    if(button.hasAttribute('data-pick-grid-item')){
+      const result=gridApi.addTile(state,id,{type:'item',productId:button.dataset.pickGridItem,
+        color:gridApi.defaultColor(state.products.find(x=>x.id===button.dataset.pickGridItem)?.category)});
+      if(!result.ok){toast(result.error);return;}
+      save();closeModal();catalog();toast('Item tile added');return;
+    }
+    if(button.hasAttribute('data-pick-grid-category')){
+      const result=gridApi.addTile(state,id,{type:'category',category:button.dataset.pickGridCategory,
+        color:gridApi.defaultColor(button.dataset.pickGridCategory)});
+      if(!result.ok){toast(result.error);return;}
+      save();closeModal();catalog();toast('Category shortcut added');return;
+    }
+    if(button.hasAttribute('data-pick-grid-amount')){
+      const result=gridApi.addTile(state,id,{type:'custom-amount',color:'slate'});
+      if(!result.ok){toast(result.error);return;}
+      save();closeModal();catalog();toast('Custom amount shortcut added');return;
+    }
+    if(button.hasAttribute('data-grid-color')){
+      if(gridApi.setColor(state,id,button.dataset.gridTileId,button.dataset.gridColor)){
+        save();catalog();openGridTileEditor(button.dataset.gridTileId);
+      }return;
+    }
+    if(button.hasAttribute('data-grid-move')){
+      if(gridApi.moveTile(state,id,button.dataset.gridTileId,Number(button.dataset.gridMove))){
+        save();catalog();openGridTileEditor(button.dataset.gridTileId);
+      }return;
+    }
+    if(button.hasAttribute('data-category-product')){
+      const productId=button.dataset.categoryProduct;
+      closeModal();addFromGrid(productId);
+    }
+  }
   function openCreateFavoritesTab(){
     openModal('Create Favorites tab',
       '<p class="favoriteManagerHelp">Create another group of favorite item buttons. Tabs are stored on this device and can be renamed or rearranged later.</p>'+
@@ -649,6 +813,7 @@
       {label:'Save favorites',kind:'primary',click:()=>{
         const chosen=[...$('favoriteItemsChooser').querySelectorAll('[data-favorite-item]:checked')].map(input=>input.dataset.favoriteItem);
         groupsApi.setProducts(state,id,chosen);
+        gridApi.normalize(state);
         state.activeFavoriteGroupId=id;registerTab='favorites';save();closeModal();render();toast('Favorites updated in '+group.name);
       }}
     ]);
@@ -701,10 +866,20 @@
     }
     if(action==='move-item-up'||action==='move-item-down'){
       if(groupsApi.moveProduct(state,id,button.dataset.favProduct,action==='move-item-up'?-1:1)){
+        gridApi.alignItemOrder(state,id);
         save();render();reorderFavoriteItems(id);
       }
     }
   }
+  $('editGridLayout').onclick=()=>{
+    gridEditMode=!gridEditMode;
+    searchText='';$('itemSearch').value='';
+    catalog();
+  };
+  $('dialogBody').addEventListener('click',ev=>{
+    const action=ev.target.closest('[data-pick-grid-item],[data-pick-grid-category],[data-pick-grid-amount],[data-grid-color],[data-grid-move],[data-category-product]');
+    if(action)handleGridManagerClick(action);
+  });
   $('registerTabs').addEventListener('click',ev=>{
     const create=ev.target.closest('[data-create-favorite-group]');
     if(create){openCreateFavoritesTab();return;}
@@ -714,7 +889,7 @@
       registerTab='favorites';searchText='';$('itemSearch').value='';save();catalog();return;
     }
     const btn=ev.target.closest('[data-register-tab]');
-    if(btn){registerTab=btn.dataset.registerTab;searchText='';$('itemSearch').value='';catalog();}
+    if(btn){registerTab=btn.dataset.registerTab;gridEditMode=false;searchText='';$('itemSearch').value='';catalog();}
   });
   $('itemSearch').addEventListener('input',ev=>{searchText=ev.target.value;catalog();});
   $('productGrid').addEventListener('click',ev=>{
@@ -722,6 +897,7 @@
     const id=favorite.dataset.favorite;
     const group=groupsApi.active(state);
     const added=groupsApi.toggleProduct(state,group.id,id);
+    gridApi.normalize(state);
     save();catalog();toast((added?'Added to ':'Removed from ')+group.name);
   });
   $('bottomNav').addEventListener('click',ev=>{

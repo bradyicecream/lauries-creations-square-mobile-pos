@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="square-register.css">
 <link rel="stylesheet" href="operations.css">
+<link rel="stylesheet" href="checkout-square-grid.css">
 </head>
 <body>
 <header class="topbar">
@@ -19,7 +20,7 @@
   <div class="workspace" id="checkoutWorkspace">
     <section class="catalog" aria-label="Checkout product selection">
       <div class="cataloghead">
-        <div class="catalogHeading"><span class="eyebrow">REGISTER</span><h2>Checkout</h2><p id="catalogHint">Choose an item to start a sale.</p></div>
+        <div class="catalogHeading"><span class="eyebrow">POINT OF SALE</span><h2>Checkout</h2><p id="catalogHint">Choose an item to start a sale.</p></div>
         <button id="newProduct" class="secondary small-action newItemBtn" type="button"><span aria-hidden="true">＋</span> New item</button>
       </div>
       <div class="favoriteTabRow">
@@ -31,9 +32,13 @@
         <button type="button" id="manageFavoriteTabs" class="manageTabsButton" aria-label="Edit favorites tabs">⚙ Edit tabs</button>
       </div>
       <div id="favoritesToolbar" class="favoritesToolbar">
-        <div><strong id="currentFavoriteName">Favorites</strong><small>Choose items in this group.</small></div>
-        <button type="button" id="editActiveFavorites" class="secondary small-action">★ Edit items</button>
+        <div class="gridPageIdentity"><strong id="currentFavoriteName">Favorites</strong><small id="gridModeDescription">Tap a tile to add to the sale</small></div>
+        <div class="gridActions">
+          <button type="button" id="editActiveFavorites" class="secondary small-action">Items</button>
+          <button type="button" id="editGridLayout" class="secondary small-action">Edit grid</button>
+        </div>
       </div>
+      <div id="gridEditHelp" class="gridEditHelp" hidden>Choose a tile to change its color, position, or remove it. Tap a + square to add a shortcut.</div>
       <div class="favoritesToolbar" id="libraryFavoritesTarget" hidden>
         <div><strong id="libraryFavoriteGroupName">Favorites</strong><small>Tap ★ to add items to this favorites group.</small></div>
         <button type="button" id="chooseFavoriteGroup" class="secondary small-action">Change group</button>
@@ -42,7 +47,7 @@
         <span aria-hidden="true" class="searchIcon">⌕</span><input id="itemSearch" type="search" autocomplete="off" placeholder="Search this tab" aria-label="Search checkout items">
       </div>
       <nav id="categories" class="categories" aria-label="Product categories"></nav>
-      <div id="productGrid" class="products"></div>
+      <div id="productGrid" class="products" aria-live="polite"></div>
       <div id="keypadPanel" class="keypadPanel" hidden>
         <div class="amountWell"><small>Custom amount</small><strong id="keypadAmount">$0.00</strong></div>
         <div class="numberPad" aria-label="Custom amount keypad">
@@ -103,11 +108,9 @@
 <button id="mobileCartBar" class="mobileCartBar" type="button" hidden>View current sale <span id="mobileCartAmount">$0.00</span></button>
 <div id="cartScrim" class="cartScrim" hidden></div>
 <nav class="bottomNav" id="bottomNav" aria-label="Main navigation">
-  <div class="sideNavHeading">WORKSPACE</div>
-  <button type="button" data-nav="checkout" class="active" aria-current="page"><span aria-hidden="true">▦</span>Checkout</button>
-  <button type="button" data-nav="activity"><span aria-hidden="true">◷</span>Activity</button>
+    <button type="button" data-nav="checkout" class="active" aria-current="page"><span aria-hidden="true">▦</span>Checkout</button>
+  <button type="button" data-nav="activity"><span aria-hidden="true">◷</span>Transactions</button>
   <button type="button" data-nav="more"><span aria-hidden="true">☰</span>More</button>
-  <div class="sideNavFooter"><strong>Laurie’s Creations</strong><small>Square Sandbox test</small></div>
 </nav>
 <dialog id="dialog"><form method="dialog" id="dialogForm"><div class="dialogTop"><h2 id="dialogTitle">Edit</h2><button type="button" id="closeDialog" class="iconButton" aria-label="Close">✕</button></div><div id="dialogBody"></div><div id="dialogActions" class="dialogActions"></div></form></dialog>
 <input type="file" id="importFile" accept="application/json" hidden>
@@ -116,6 +119,7 @@
 <script src="favorite-groups.js"></script>
 <script src="modifier-groups.js"></script>
 <script src="register-cart.js"></script>
+<script src="register-grid.js"></script>
 <script src="checkout-charges.js"></script>
 <script src="operations-model.js"></script>
 <script src="operations-ui.js"></script>
