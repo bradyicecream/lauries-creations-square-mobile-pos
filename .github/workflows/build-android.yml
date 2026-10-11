@@ -102,16 +102,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          tag="v1.3.0-sandbox"
-          asset="Lauries-Creations-POS-v1.3.0-Sandbox.apk"
+          tag="v1.3.1-sandbox"
+          asset="Lauries-Creations-POS-v1.3.1-Sandbox.apk"
           cp app/build/outputs/apk/debug/app-debug.apk "/tmp/$asset"
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "Release $tag already exists; preserving the existing downloadable APK."
           else
             gh release create "$tag" "/tmp/$asset" \
               --target "$GITHUB_SHA" \
-              --title "Laurie's Creations POS v1.3 — Editable Favorites Tabs" \
-              --notes "SANDBOX TEST VERSION — not for real payments. Adds customizable Favorites tabs and groups, new tab creation, rename, reordering and removal, assigning items to each tab, and arranging favorite buttons. Existing Favorites are migrated automatically. Includes previous saved item catalog and Square Sandbox setup diagnostics. Favorites and products are saved locally and do not sync with Square. Sandbox only; not real payments. Android 9 or newer required. This is a debug-signed APK; installation over older builds may fail if their signatures differ. Back up locally edited products and flavors before uninstalling." \
+              --title "Laurie's Creations POS v1.3.1 — Optional Keypad and Library Tabs" \
+              --notes "SANDBOX TEST VERSION — not for real payments. Adds independent Show Keypad and Show Library switches under Edit tabs. You can hide either tab or both and restore them without losing products, favorites, or sale information. Settings save locally and persist between app launches. Editable Favorites groups remain available. Includes previous saved item catalog and Square Sandbox setup diagnostics. Favorites and products are saved locally and do not sync with Square. Sandbox only; not real payments. Android 9 or newer required. This is a debug-signed APK; installation over older builds may fail if their signatures differ. Back up locally edited products and flavors before uninstalling." \
               --prerelease
           fi
           echo "Download release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
