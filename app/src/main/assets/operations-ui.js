@@ -75,6 +75,11 @@
      }).join('');
      const body=active?
        '<div class="opsKpis"><div><strong>'+amt(model.expectedCash(state,active.id))+'</strong><small>Expected cash in drawer</small></div><div><strong>'+e(o.salesRecords.filter(x=>x.sessionId===active.id).length)+'</strong><small>Local cash sales</small></div></div>'+
+       '<h3 class="opsMiniHeading">Paid in / paid out</h3>'+
+       '<label class="field">Adjustment amount ($)<input id="opsCashAdjust" type="text" inputmode="decimal" placeholder="5.00"></label>'+
+       '<label class="field">Reason<input id="opsCashReason" maxlength="80" placeholder="e.g. Buy supplies"></label>'+
+       '<div class="opsFormRow"><button class="secondary" id="opsPaidIn" type="button">＋ Paid in</button><button class="secondary" id="opsPaidOut" type="button">− Paid out</button></div>'+
+       '<div class="opsDivider"></div>'+
        '<label class="field">Counted closing cash ($)<input id="opsCounted" type="text" inputmode="decimal" placeholder="0.00"></label>'+
        '<button class="secondary" id="opsCloseCash" type="button">Close cash session</button>'
        :'<label class="field">Opening cash / starting bank ($)<input id="opsOpening" type="text" value="0.00" inputmode="decimal"></label>'+
@@ -83,6 +88,17 @@
        '<p class="opsWarning">Local cash ledger only. No physical cash drawer is connected and no cash totals are posted to Square or a bank.</p>'+
        body+'<div class="opsDivider"></div><strong>Recent cash sessions</strong>'+recent,
        [{label:'Done',click:close}]);
+     if(active){
+       for(const [field,sign] of [['opsPaidIn',1],['opsPaidOut',-1]]){
+         $(field).onclick=()=>{
+           const amount=formNum('opsCashAdjust');
+           if(amount===null||Number.isNaN(amount)||amount<=0){toast('Enter a positive adjustment amount.');return;}
+           const r=model.adjustCash(state,amount*sign,$('opsCashReason').value);
+           if(!r.ok){toast(r.error);return;}
+           memo();cashDrawer();toast(sign>0?'Paid in recorded':'Paid out recorded');
+         };
+       }
+     }
      if(active)$('opsCloseCash').onclick=()=>{const counted=formNum('opsCounted'),r=model.closeCash(state,counted);
        if(!r.ok){toast(r.error);return;}memo();cashDrawer();toast('Cash counted; variance '+(r.variance<0?'-':'+')+amt(Math.abs(r.variance)));};
      else $('opsOpenCash').onclick=()=>{const amount=formNum('opsOpening'),r=model.openCash(state,amount);
