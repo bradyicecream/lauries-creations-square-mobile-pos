@@ -247,8 +247,17 @@
     <label class="field">Variations (one per line)<textarea id="productVariants" rows="4" style="width:100%">${e((p?.variants||[]).join('\n'))}</textarea></label>
     <label class="field">Variation-specific prices (one per line: Variation|price in dollars)<textarea id="variationPriceLines" rows="4" style="width:100%" placeholder="Black OSU|25.00">${e((p?.variants||[]).map(v=>v+'|'+(p?.variantPrices?.[v]===null||p?.variantPrices?.[v]===undefined?'':(p.variantPrices[v]/100).toFixed(2))).join('\n'))}</textarea></label>
     <label class="field">Number of ice cream scoops (0–6)<input id="productScoops" type="number" min="0" max="6" value="${p?.scoops||0}"></label>
-    <label class="field">Modifiers (one per line: name|upcharge in dollars)<textarea id="productExtras" rows="4" style="width:100%" placeholder="Gift wrap|1.00">${e((p?.extras||[]).map(x=>x.name+'|'+(x.price/100).toFixed(2)).join('\n'))}</textarea></label>
-    <p class="fine">Only prices you enter are used for new cart items. Existing cart items keep their previous price until edited.</p>`,[
+    <label class="field">Individual modifiers (one per line: name|upcharge in dollars)<textarea id="productExtras" rows="4" style="width:100%" placeholder="Gift wrap|1.00">${e((p?.extras||[]).map(x=>x.name+'|'+(x.price/100).toFixed(2)).join('\n'))}</textarea></label>
+    <div class="divider"></div>
+    <h3 class="modProductHeading">Modifier groups for this item</h3>
+    <p class="fine">Select any reusable group below. These work on <strong>every category</strong>, and changes to a shared group update the choices shown across assigned items. To create or edit groups, choose More → Modifier groups.</p>
+    <div class="productModifierChecklist">
+      ${state.modifierSets.length?state.modifierSets.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(g=>`<label>
+        <input type="checkbox" data-product-group="${e(g.id)}" ${(p?.modifierGroupIds||[]).includes(g.id)?'checked':''}>
+        <span>${e(g.name)} <small>${g.options.length} options</small></span>
+      </label>`).join(''):'<p class="fine">No modifier groups yet. Create one in More → Modifier groups.</p>'}
+    </div>
+    <p class="fine">Updated prices and modifiers apply to future item additions. Existing cart items keep their previous choices until edited.</p>`,[
       ...(p?[{label:'Delete product',click:()=>{if(!confirm('Delete product from catalog? Items already in cart remain.'))return;state.products=state.products.filter(x=>x.id!==p.id);for(const g of state.favoriteGroups)g.productIds=g.productIds.filter(x=>x!==p.id);groupsApi.normalize(state);closeModal();render();}}]:[]),
       {label:'Cancel',click:closeModal},
       {label:'Save product',kind:'primary',click:()=>{
@@ -266,8 +275,9 @@
           if(!variants.includes(variant)||Number.isNaN(amount)){toast('Check variation name and price: '+variant);return;}
           variantPrices[variant]=amount;
         }
+        const modifierGroupIds=[...$('dialogBody').querySelectorAll('[data-product-group]:checked')].map(el=>el.dataset.productGroup);
         const value={id:p?.id||makeId(),name,category:cat,icon:$('productIcon').value.trim()||'🧵',price,variants,variantPrices,scoops,extras,
-          modifierGroups:p?.modifierGroups||[],source:p?.source||'local',reviewRequired:p?.source==='saved-snapshot'?!($('priceConfirmed')?.checked):false};
+          modifierGroups:p?.modifierGroups||[],modifierGroupIds,source:p?.source||'local',reviewRequired:p?.source==='saved-snapshot'?!($('priceConfirmed')?.checked):false};
         if(p)state.products=state.products.map(x=>x.id===id?value:x);else state.products.push(value);
         save();closeModal();render();toast('Product saved');
       }}
@@ -282,12 +292,13 @@
       {label:'Export backup',click:()=>{const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='lauries-register-backup.json';link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);toast('Backup exported');}},
       {label:'Import backup',click:()=>{$('importFile').click();}},
       {label:'Flavors',click:flavorsEditor},
+      {label:'Modifier groups',click:openModifierGroupsManager},
       {label:'Restore saved library',click:restoreSavedCatalog},
       {label:'New product',click:()=>editProduct()},
       {label:'Save tax',kind:'primary',click:()=>{const rate=Number($('taxRate').value);if(!Number.isFinite(rate)||rate<0||rate>30){toast('Enter a tax rate from 0–30%');return;}state.taxPercent=rate;save();closeModal();render();toast('Tax updated');}}
     ]);
   }
-  $('importFile').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{const src=JSON.parse(await file.text());if(!Array.isArray(src.products)||!Array.isArray(src.flavors)||!Array.isArray(src.cart))throw Error('Invalid backup');if(!confirm('Replace your current register settings and cart with this backup?'))return;state=src;groupsApi.normalize(state);state.saleId=makeId();state.paidSaleId=null;save();closeModal();render();toast('Backup restored — verify prices');}catch(_){toast('Could not import this backup');}finally{ev.target.value='';}});
+  $('importFile').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{const src=JSON.parse(await file.text());if(!Array.isArray(src.products)||!Array.isArray(src.flavors)||!Array.isArray(src.cart))throw Error('Invalid backup');if(!confirm('Replace your current register settings and cart with this backup?'))return;state=src;groupsApi.normalize(state);modifiersApi.normalize(state);state.saleId=makeId();state.paidSaleId=null;save();closeModal();render();toast('Backup restored — verify prices');}catch(_){toast('Could not import this backup');}finally{ev.target.value='';}});
   function squareState(){try{return window.LaurieSquare?.squareState?.()||'browser-preview';}catch(_){return 'unavailable';}}
   function syncSquareStatus(){const v=squareState(),text={'not-configured':'Add Sandbox app ID','unauthorized-sandbox':'Sandbox not connected','authorized-sandbox':'Sandbox connected','browser-preview':'Browser preview only','unavailable':'Square unavailable'};$('sqStatus').textContent=text[v]||v;}
   window.receiveSquareEvent=function(payload){let msg;try{msg=JSON.parse(payload);}catch(_){return;}
@@ -532,6 +543,23 @@
   $('manageFromMore').onclick=manage;
   $('flavorsFromMore').onclick=flavorsEditor;
   $('newFromMore').onclick=()=>editProduct();
+  $('modifierGroupsFromMore').onclick=openModifierGroupsManager;
+  $('dialogBody').addEventListener('click',ev=>{
+    const edit=ev.target.closest('[data-mod-edit]');if(edit){openModifierGroupEditor(edit.dataset.modEdit);return;}
+    const assign=ev.target.closest('[data-mod-category]');if(assign){openAssignModifierCategory(assign.dataset.modCategory);return;}
+    const add=ev.target.closest('#modAddOption');
+    if(add){
+      const target=$('modifierOptionEditor');
+      if(target.querySelectorAll('[data-mod-option-row]').length>=100){toast('Each group supports up to 100 options');return;}
+      target.insertAdjacentHTML('beforeend',renderModifierOptionRow({id:makeId(),name:'',price:0,active:true}));
+      const name=target.lastElementChild.querySelector('[data-mod-option-name]');name?.focus();return;
+    }
+    const remove=ev.target.closest('[data-mod-option-remove]');
+    if(remove){
+      const row=remove.closest('[data-mod-option-row]');
+      row?.remove();return;
+    }
+  });
   $('manageFavoriteTabs').onclick=openManageFavoritesTabs;
   $('favoriteGroupsFromMore').onclick=openManageFavoritesTabs;
   $('editActiveFavorites').onclick=()=>editFavoriteItems(groupsApi.active(state).id);
@@ -571,6 +599,7 @@
       state.flavors.push({...flavor});flavorNames.add(key);addedFlavors++;
     }
     state.savedCatalogVersion=savedCatalog.version;
+    modifiersApi.normalize(state); // Convert restored old inline modifier groups into editable reusable ones.
     save();closeModal();render();
     toast('Restored '+count+' missing products and '+addedFlavors+' flavors.');
     showSection('checkout');registerTab='library';catalog();
