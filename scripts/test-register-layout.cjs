@@ -5,7 +5,7 @@ const css=fs.readFileSync('app/src/main/assets/square-register.css','utf8');
 const js=fs.readFileSync('app/src/main/assets/app.js','utf8');
 const ids=['registerTabs','productGrid','cartList','itemSearch','cartPane','checkout','saleNoteButton','saleNotePreview','saleNoteLabel','mobileCartBar','bottomNav','manageFavoriteTabs','squareConnect','squareDiagnostic','modifierGroupsFromMore','favoritesToolbar','libraryFavoritesTarget','chooseFavoriteGroup'];
 for(const id of ids)assert.ok(html.includes('id="'+id+'"'),'Missing required UI element: '+id);
-assert.equal([...html.matchAll(/\\sid="([^"]+)"/g)].length,new Set([...html.matchAll(/\\sid="([^"]+)"/g)].map(x=>x[1])).size,'Duplicate ids');
+assert.equal([...html.matchAll(/id="([^"]+)"/g)].length,new Set([...html.matchAll(/id="([^"]+)"/g)].map(x=>x[1])).size,'Duplicate ids');
 assert.ok(html.includes('src="register-cart.js"'),'One-tap checkout helper must be loaded');
 assert.ok(html.indexOf('register-cart.js')<html.indexOf('app.js'),'Load helper before main script');
 assert.ok(html.includes('href="square-register.css"'),'Register skin included');
