@@ -25,6 +25,8 @@
   let state;
   try {state=JSON.parse(localStorage.getItem(KEY))||defaultState();}catch(_){state=defaultState();}
   if(!Array.isArray(state.products)||!Array.isArray(state.cart)||!Array.isArray(state.flavors))state=defaultState();
+  const groupsApi=window.LaurieFavoriteGroups;
+  groupsApi.normalize(state); // Migrates older single Favorites lists without deleting them.
   const $=id=>document.getElementById(id);
   const format=cents=>cents===null||!Number.isSafeInteger(cents)?'PRICE NEEDED':(cents/100).toLocaleString('en-US',{style:'currency',currency:'USD'});
   const e=value=>String(value??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
@@ -36,7 +38,7 @@
   let activeNav='checkout';
   let searchText='';
   let amountDigits='';
-  if(!Array.isArray(state.favorites))state.favorites=['tumbler','autism','halloween','ice1','ice2'];
+  // Every Favorites group has its own independent, ordered item list.
   let modalSave=()=>{};
   function openModal(title,body,buttons){$('dialogTitle').textContent=title;$('dialogBody').innerHTML=body;$('dialogActions').innerHTML='';for(const b of buttons){const bt=document.createElement('button');bt.type='button';bt.className=b.kind||'secondary';bt.textContent=b.label;bt.addEventListener('click',b.click);$('dialogActions').appendChild(bt);}if(!$('dialog').open)$('dialog').showModal();}
   function closeModal(){$('dialog').close();}
