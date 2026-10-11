@@ -272,6 +272,136 @@
       }}
     ]);
   }
+  function openCreateFavoritesTab(){
+    openModal('Create Favorites tab',
+      '<p class="favoriteManagerHelp">Create another group of favorite item buttons. Tabs are stored on this device and can be renamed or rearranged later.</p>'+
+      '<label class="field">Tab name<input id="newFavoriteTabName" maxlength="30" placeholder="Example: Holiday Items" autocomplete="off"></label>',[
+      {label:'Cancel',click:closeModal},
+      {label:'Create tab',kind:'primary',click:()=>{
+        const result=groupsApi.addGroup(state,$('newFavoriteTabName').value);
+        if(!result.ok){toast(result.message);return;}
+        registerTab='favorites';save();closeModal();render();toast(result.group.name+' tab created');
+      }}
+    ]);
+    $('newFavoriteTabName').focus();
+  }
+  function openRenameFavoritesTab(id){
+    const group=state.favoriteGroups.find(g=>g.id===id);
+    if(!group)return;
+    openModal('Rename Favorites tab',
+      '<label class="field">Tab name<input id="renameFavoriteTabName" maxlength="30" autocomplete="off" value="'+e(group.name)+'"></label>',[
+      {label:'Cancel',click:openManageFavoritesTabs},
+      {label:'Save name',kind:'primary',click:()=>{
+        const result=groupsApi.renameGroup(state,id,$('renameFavoriteTabName').value);
+        if(!result.ok){toast(result.message);return;}
+        save();render();openManageFavoritesTabs();toast('Tab renamed');
+      }}
+    ]);
+    $('renameFavoriteTabName').focus();
+  }
+  function openManageFavoritesTabs(){
+    const groups=state.favoriteGroups;
+    const rows=groups.map((group,index)=>`
+      <div class="favoriteGroupRow">
+        <div class="groupName"><strong>${e(group.name)} ${state.activeFavoriteGroupId===group.id?'✓':''}</strong><small>${group.productIds.length} saved item(s)</small></div>
+        <div class="favoriteGroupActions">
+          <button type="button" data-fav-action="open" data-fav-id="${e(group.id)}" title="Open tab">Open</button>
+          <button type="button" data-fav-action="items" data-fav-id="${e(group.id)}" title="Edit items">Items</button>
+          <button type="button" data-fav-action="rename" data-fav-id="${e(group.id)}">Rename</button>
+          <button type="button" data-fav-action="left" data-fav-id="${e(group.id)}" ${index===0?'disabled':''} aria-label="Move ${e(group.name)} left">←</button>
+          <button type="button" data-fav-action="right" data-fav-id="${e(group.id)}" ${index===groups.length-1?'disabled':''} aria-label="Move ${e(group.name)} right">→</button>
+          <button type="button" data-fav-action="delete" data-fav-id="${e(group.id)}" ${groups.length===1?'disabled':''}>Delete</button>
+        </div>
+      </div>`).join('');
+    openModal('Edit Favorites tabs',
+      '<p class="favoriteManagerHelp">Add your own tab names and groups. Use ← → to change the order. Deleting a tab never deletes your actual products.</p>'+rows,[
+      {label:'Done',click:closeModal},
+      {label:'＋ New tab',kind:'primary',click:openCreateFavoritesTab}
+    ]);
+  }
+  function chooseFavoriteGroup(){
+    const buttons=state.favoriteGroups.map(group=>`
+      <button class="utilityRow" type="button" data-fav-action="select" data-fav-id="${e(group.id)}">★ ${e(group.name)} <span>${group.id===state.activeFavoriteGroupId?'✓':'›'}</span></button>`).join('');
+    openModal('Choose Favorites group',
+      '<p class="favoriteManagerHelp">Stars in the Item Library add or remove items from the chosen group.</p>'+buttons,[
+      {label:'Cancel',click:closeModal},
+      {label:'＋ New group',kind:'primary',click:openCreateFavoritesTab}
+    ]);
+  }
+  function editFavoriteItems(id){
+    const group=state.favoriteGroups.find(g=>g.id===id);
+    if(!group)return;
+    const selected=new Set(group.productIds);
+    const rows=state.products.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`
+      <label class="favoriteChoice">
+        <input type="checkbox" data-favorite-item="${e(p.id)}" ${selected.has(p.id)?'checked':''}>
+        <span>${e(p.icon||'🧵')} ${e(p.name)}<small> · ${e(p.category||'Other')}</small></span>
+      </label>`).join('');
+    openModal('Items in '+group.name,
+      '<p class="favoriteManagerHelp">Check the products you want as buttons on this Favorites tab. Items remain available in the full Library even if unchecked.</p>'+
+      '<label class="field">Search products<input id="favoriteItemsSearch" type="search" placeholder="Filter products" autocomplete="off"></label>'+
+      '<div class="favoriteChooser" id="favoriteItemsChooser">'+rows+'</div>',[
+      {label:'Cancel',click:closeModal},
+      {label:'Reorder items',click:()=>reorderFavoriteItems(id)},
+      {label:'Save favorites',kind:'primary',click:()=>{
+        const chosen=[...$('favoriteItemsChooser').querySelectorAll('[data-favorite-item]:checked')].map(input=>input.dataset.favoriteItem);
+        groupsApi.setProducts(state,id,chosen);
+        state.activeFavoriteGroupId=id;registerTab='favorites';save();closeModal();render();toast('Favorites updated in '+group.name);
+      }}
+    ]);
+    $('favoriteItemsSearch').addEventListener('input',ev=>{
+      const query=ev.target.value.trim().toLowerCase();
+      for(const row of $('favoriteItemsChooser').querySelectorAll('.favoriteChoice')){
+        row.hidden=Boolean(query)&&!row.textContent.toLowerCase().includes(query);
+      }
+    });
+  }
+  function reorderFavoriteItems(id){
+    const group=state.favoriteGroups.find(g=>g.id===id);
+    if(!group)return;
+    const existing=group.productIds.filter(productId=>state.products.some(p=>p.id===productId));
+    const rows=existing.map((productId,index)=>{
+      const p=productById(productId);
+      return `<div class="favoriteItemRow">
+        <span class="favoriteItemName">${e(p?.icon||'★')} ${e(p?.name||'Removed item')}</span>
+        <div class="favoriteItemActions">
+          <button type="button" data-fav-action="move-item-up" data-fav-id="${e(group.id)}" data-fav-product="${e(productId)}" ${index===0?'disabled':''} aria-label="Move ${e(p?.name||'item')} up">↑</button>
+          <button type="button" data-fav-action="move-item-down" data-fav-id="${e(group.id)}" data-fav-product="${e(productId)}" ${index===existing.length-1?'disabled':''} aria-label="Move ${e(p?.name||'item')} down">↓</button>
+        </div>
+      </div>`;
+    }).join('');
+    openModal('Arrange '+group.name,
+      '<p class="favoriteManagerHelp">Move favorite item buttons up or down. Changes save immediately.</p>'+(rows||'<p>No favorites selected yet. Add items first.</p>'),[
+      {label:'Done',click:closeModal},
+      {label:'＋ Edit items',kind:'primary',click:()=>editFavoriteItems(id)}
+    ]);
+  }
+  function handleFavoriteManagerAction(button){
+    const id=button.dataset.favId,action=button.dataset.favAction;
+    if(action==='open'){
+      state.activeFavoriteGroupId=id;registerTab='favorites';save();closeModal();render();return;
+    }
+    if(action==='select'){
+      state.activeFavoriteGroupId=id;save();closeModal();catalog();toast('Stars now edit '+groupsApi.active(state).name);return;
+    }
+    if(action==='items'){editFavoriteItems(id);return;}
+    if(action==='rename'){openRenameFavoritesTab(id);return;}
+    if(action==='left'||action==='right'){
+      if(groupsApi.moveGroup(state,id,action==='left'?-1:1)){save();render();openManageFavoritesTabs();}
+      return;
+    }
+    if(action==='delete'){
+      const group=state.favoriteGroups.find(g=>g.id===id);
+      if(!group||state.favoriteGroups.length===1)return;
+      if(!confirm('Delete the "'+group.name+'" Favorites tab? Your products will remain in the Item Library.'))return;
+      groupsApi.removeGroup(state,id);save();render();openManageFavoritesTabs();toast('Tab deleted; products kept');return;
+    }
+    if(action==='move-item-up'||action==='move-item-down'){
+      if(groupsApi.moveProduct(state,id,button.dataset.favProduct,action==='move-item-up'?-1:1)){
+        save();render();reorderFavoriteItems(id);
+      }
+    }
+  }
   $('registerTabs').addEventListener('click',ev=>{
     const btn=ev.target.closest('[data-register-tab]');if(!btn)return;
     registerTab=btn.dataset.registerTab;catalog();
