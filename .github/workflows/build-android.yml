@@ -23,6 +23,20 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
+      - name: Validate Sandbox Application ID secret
+        env:
+          SQUARE_SANDBOX_APP_ID: ${{ secrets.SQUARE_SANDBOX_APP_ID }}
+        shell: bash
+        run: |
+          if [ -z "$SQUARE_SANDBOX_APP_ID" ]; then
+            echo "::error::Missing SQUARE_SANDBOX_APP_ID: add it in Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          case "$SQUARE_SANDBOX_APP_ID" in
+            sandbox-*) echo "Sandbox Application ID provided." ;;
+            *) echo "::error::The configured Application ID does not look like a Square Sandbox ID."; exit 1 ;;
+          esac
+
       - name: Compile Sandbox APK
         env:
           SQUARE_SANDBOX_APP_ID: ${{ secrets.SQUARE_SANDBOX_APP_ID }}
