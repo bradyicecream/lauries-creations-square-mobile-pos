@@ -27,6 +27,8 @@
   if(!Array.isArray(state.products)||!Array.isArray(state.cart)||!Array.isArray(state.flavors))state=defaultState();
   const groupsApi=window.LaurieFavoriteGroups;
   groupsApi.normalize(state); // Migrates older single Favorites lists without deleting them.
+  const modifiersApi=window.LaurieModifierGroups;
+  modifiersApi.normalize(state); // Preserves and migrates saved per-product modifier groups.
   const $=id=>document.getElementById(id);
   const format=cents=>cents===null||!Number.isSafeInteger(cents)?'PRICE NEEDED':(cents/100).toLocaleString('en-US',{style:'currency',currency:'USD'});
   const e=value=>String(value??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
@@ -113,11 +115,13 @@
     const variations=(p.variants||[]).length?`<label class="field">Variation<select id="choiceVariant">${p.variants.map(v=>`<option value="${e(v)}" ${v===chosenVariant?'selected':''}>${e(v)}${p.variantPrices&&p.variantPrices[v]!=null?' ('+format(p.variantPrices[v])+')':''}</option>`).join('')}</select></label>`:'';
     const flavorRows=Array.from({length:p.scoops||0},(_,j)=>`<label class="field">Scoop ${j+1}<select class="flavorSelect" data-scoop="${j}">${state.flavors.filter(f=>f.active||choices[j]===f.id).map(f=>`<option value="${e(f.id)}" ${choices[j]===f.id?'selected':''}>${e(f.name)}${f.price?' (+'+format(f.price)+')':''}${!f.active?' (unavailable)':''}</option>`).join('')}</select></label>`).join('');
     const extraRows=(p.extras||[]).length?`<div class="divider"></div><strong>Modifiers</strong>${p.extras.map((x,j)=>`<label class="field"><input type="checkbox" data-extra="${j}" ${extras.includes(x.name)?'checked':''}> ${e(x.name)} (+${format(x.price)})</label>`).join('')}`:'';
-    const groupRows=(p.modifierGroups||[]).map((group,j)=>{
+    const appliedGroups=modifiersApi.forProduct(state,p);
+    const groupRows=appliedGroups.map((group,j)=>{
       const limit=group.max===0?99:group.max;
       return `<div class="modifierGroup"><strong>${e(group.name)}</strong><small>${group.min>0?'Select at least '+group.min:'Optional'}${limit<99?' · Up to '+limit:''}</small><div class="modifierChoices">${(group.options||[]).map((opt,k)=>{
-        const checked=(current?.extras||[]).some(x=>x.name===opt.name && x.group===group.name);
-        return `<label><input type="checkbox" data-group="${j}" data-option="${k}" ${checked?'checked':''}><span>${e(opt.name)}${opt.price===null?' · PRICE NEEDED':' · '+format(opt.price)}</span></label>`;
+        const checked=(current?.extras||[]).some(x=>x.optionId===opt.id||(x.name===opt.name&&x.group===group.name));
+        if(opt.active===false&&!checked)return '';
+        return `<label><input type="checkbox" data-group="${j}" data-option="${k}" ${checked?'checked':''} ${opt.active===false?'disabled':''}><span>${e(opt.name)}${opt.price===null?' · PRICE NEEDED':' · '+format(opt.price)}${opt.active===false?' · unavailable':''}</span></label>`;
       }).join('')}</div></div>`;
     }).join('');
     openModal(index===null?'Add '+p.name:'Edit cart item',variations+flavorRows+extraRows+groupRows+`<label class="field">Quantity<input id="quantity" type="number" inputmode="numeric" min="1" max="99" value="${current?.qty||1}"></label><p class="fine">Base price: ${format(p.price)}. Changes to base prices happen in Manage → Products.</p>`,[
@@ -128,13 +132,13 @@
           const selectedFlavors=[...$('dialogBody').querySelectorAll('.flavorSelect')].map(el=>el.value);
           if(selectedFlavors.some(id=>!state.flavors.find(f=>f.id===id)?.active)){toast('Choose an available flavor');return;}
           const selectedExtras=[...$('dialogBody').querySelectorAll('[data-extra]:checked')].map(el=>p.extras[Number(el.dataset.extra)]);
-          for(const [j,group] of (p.modifierGroups||[]).entries()){
+          for(const [j,group] of appliedGroups.entries()){
             const checked=[...$('dialogBody').querySelectorAll('[data-group="'+j+'"]:checked')];
             const maximum=group.max===0?99:group.max;
             if(checked.length<(group.min||0)||checked.length>maximum){toast(group.name+': select '+(group.min||0)+' to '+maximum+' options.');return;}
             const choices=checked.map(el=>group.options[Number(el.dataset.option)]);
             if(choices.some(x=>x.price===null)){toast('A modifier price has not been verified. Update the item before checkout.');return;}
-            selectedExtras.push(...choices.map(x=>({name:x.name,price:x.price,group:group.name})));
+            selectedExtras.push(...choices.map(x=>({name:x.name,price:x.price,group:group.name,groupId:group.id,optionId:x.id})));
           }
           const selectedVariant=$('choiceVariant')?.value||'';
           const variablePrice=selectedVariant&&p.variantPrices&&Object.prototype.hasOwnProperty.call(p.variantPrices,selectedVariant)?p.variantPrices[selectedVariant]:p.price;
