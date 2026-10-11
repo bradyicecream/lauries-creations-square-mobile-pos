@@ -1,0 +1,36 @@
+name: Validate Laurie Square OAuth Backend
+on:
+  pull_request:
+    paths:
+      - 'square-oauth-backend/**'
+      - '.github/workflows/test-square-oauth-backend.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'square-oauth-backend/**'
+      - '.github/workflows/test-square-oauth-backend.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check OAuth backend syntax
+        working-directory: square-oauth-backend
+        run: |
+          node --check netlify/functions/oauth.mjs
+          node --check netlify/functions/auth-helpers.mjs
+      - name: Test OAuth security helpers
+        working-directory: square-oauth-backend
+        run: node --test tests/oauth.test.mjs
+      - name: Reject accidentally committed secrets
+        shell: bash
+        run: |
+          if git grep -n -E '^(SQUARE_APPLICATION_SECRET|LAURIE_OAUTH_ADMIN_KEY|LAURIE_OAUTH_ENCRYPTION_KEY)=.' -- square-oauth-backend; then
+            echo "Potential credential committed"; exit 1
+          fi
