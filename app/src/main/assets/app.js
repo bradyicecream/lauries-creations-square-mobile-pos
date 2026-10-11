@@ -121,7 +121,7 @@
       return `<div class="modifierGroup"><strong>${e(group.name)}</strong><small>${group.min>0?'Select at least '+group.min:'Optional'}${limit<99?' · Up to '+limit:''}</small><div class="modifierChoices">${(group.options||[]).map((opt,k)=>{
         const checked=(current?.extras||[]).some(x=>x.optionId===opt.id||(x.name===opt.name&&x.group===group.name));
         if(opt.active===false&&!checked)return '';
-        return `<label><input type="checkbox" data-group="${j}" data-option="${k}" ${checked?'checked':''} ${opt.active===false?'disabled':''}><span>${e(opt.name)}${opt.price===null?' · PRICE NEEDED':' · '+format(opt.price)}${opt.active===false?' · unavailable':''}</span></label>`;
+        return `<label><input type="checkbox" data-group="${j}" data-option="${k}" ${checked?'checked':''}><span>${e(opt.name)}${opt.price===null?' · PRICE NEEDED':' · '+format(opt.price)}${opt.active===false?' · unavailable (uncheck before saving)':''}</span></label>`;
       }).join('')}</div></div>`;
     }).join('');
     openModal(index===null?'Add '+p.name:'Edit cart item',variations+flavorRows+extraRows+groupRows+`<label class="field">Quantity<input id="quantity" type="number" inputmode="numeric" min="1" max="99" value="${current?.qty||1}"></label><p class="fine">Base price: ${format(p.price)}. Changes to base prices happen in Manage → Products.</p>`,[
@@ -137,6 +137,7 @@
             const maximum=group.max===0?99:group.max;
             if(checked.length<(group.min||0)||checked.length>maximum){toast(group.name+': select '+(group.min||0)+' to '+maximum+' options.');return;}
             const choices=checked.map(el=>group.options[Number(el.dataset.option)]);
+            if(choices.some(x=>x.active===false)){toast('This option is unavailable. Uncheck it before saving the cart item.');return;}
             if(choices.some(x=>x.price===null)){toast('A modifier price has not been verified. Update the item before checkout.');return;}
             selectedExtras.push(...choices.map(x=>({name:x.name,price:x.price,group:group.name,groupId:group.id,optionId:x.id})));
           }
