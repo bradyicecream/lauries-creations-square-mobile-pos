@@ -27,6 +27,8 @@
   if(!Array.isArray(state.products)||!Array.isArray(state.cart)||!Array.isArray(state.flavors))state=defaultState();
   const groupsApi=window.LaurieFavoriteGroups;
   groupsApi.normalize(state); // Migrates older single Favorites lists without deleting them.
+  const gridApi=window.LaurieRegisterGrid;
+  gridApi.normalize(state); // Keep user Favorites, order, colors and shortcuts through upgrades.
   const modifiersApi=window.LaurieModifierGroups;
   const cartApi=window.LaurieRegisterCart;
   modifiersApi.normalize(state); // Preserves and migrates saved per-product modifier groups.
@@ -48,6 +50,7 @@
   function toast(msg){const t=$('toast');t.textContent=msg;t.style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.style.display='none',3800);}
   let category='All';
   let registerTab='favorites';
+  let gridEditMode=false;
   let activeNav='checkout';
   let searchText='';
   let amountDigits='';
@@ -57,66 +60,101 @@
   function closeModal(){$('dialog').close();}
   $('closeDialog').addEventListener('click',closeModal);
   $('dialogForm').addEventListener('submit',ev=>ev.preventDefault());
+  function tileInitial(label){
+    const words=String(label||'Item').trim().split(/\s+/).filter(Boolean);
+    const letters=words.length>1?words.slice(0,2).map(w=>w[0]).join(''):words[0].slice(0,2);
+    return letters.toUpperCase();
+  }
+  function renderSquareTile(tile,group){
+    const p=tile.type==='item'?state.products.find(x=>x.id===tile.productId):null;
+    if(tile.type==='item'&&!p)return '';
+    const title=tile.type==='item'?p.name:tile.type==='category'?tile.category:'Custom amount';
+    const stock=p?operationsApi.inventoryRecord(state,p.id):null;
+    const stockText=stock?.enabled?(stock.quantity>0?stock.quantity+' in stock':'Out of stock'):'';
+    const bottom=tile.type==='item'
+      ?(p.price===null?'PRICE NEEDED':format(p.price))+(stockText?' · '+stockText:'')
+      :tile.type==='category'?'Category · Browse items':'Enter an amount';
+    const icon=tile.type==='category'?'▦':tile.type==='custom-amount'?'$':tileInitial(title);
+    const action=gridEditMode?`data-edit-tile="${e(tile.id)}"`
+      :tile.type==='item'?`data-product="${e(p.id)}"`
+      :tile.type==='category'?`data-open-category="${e(tile.category)}"`:'data-open-amount="true"';
+    return `<div class="squareGridTile" role="listitem">
+      <button type="button" class="squareTile swatch-${e(tile.color)} ${gridEditMode?'isEditing':''}"
+        ${action} aria-label="${e((gridEditMode?'Edit ': 'Open ')+title)}" title="${e(title)}">
+        <span class="squareTileFace"><span class="squareTileInitial" aria-hidden="true">${e(icon)}</span>
+          ${gridEditMode?'<span class="tileEditPencil" aria-hidden="true">✎</span>':''}</span>
+        <span class="squareTileCaption"><strong>${e(title)}</strong><small>${e(bottom)}</small></span>
+      </button>
+    </div>`;
+  }
   function catalog(){
-    // If a utility view is hidden while active, return safely to Favorites.
     if((registerTab==='keypad'&&!groupsApi.isUtilityTabVisible(state,'keypad'))||
-       (registerTab==='library'&&!groupsApi.isUtilityTabVisible(state,'library'))){
-      registerTab='favorites';
-    }
-    const currentGroup=groupsApi.active(state);
-    const tabBar=$('registerTabs');
+       (registerTab==='library'&&!groupsApi.isUtilityTabVisible(state,'library')))registerTab='favorites';
+    const currentGroup=groupsApi.active(state),tabBar=$('registerTabs');
     const previousScroll=tabBar.scrollLeft;
     const names=state.favoriteGroups.map(g=>{
-      const selected=registerTab==='favorites'&&currentGroup.id===g.id;
-      return `<button type="button" data-group-id="${e(g.id)}" class="${selected?'active':''}" aria-selected="${selected}" title="${e(g.name)}">★ ${e(g.name)}</button>`;
+      const selected=registerTab==='favorites'&&g.id===currentGroup.id;
+      return `<button type="button" data-group-id="${e(g.id)}" class="${selected?'active':''}" aria-selected="${selected}" title="${e(g.name)}">${e(g.name)}</button>`;
     }).join('');
     tabBar.innerHTML=names+
-      `<button type="button" class="newGroupTab" data-create-favorite-group="true" title="Create new Favorites tab">＋ Tab</button>`+
-      (groupsApi.isUtilityTabVisible(state,'keypad')
-        ?`<button type="button" data-register-tab="keypad" class="${registerTab==='keypad'?'active':''}" aria-selected="${registerTab==='keypad'}">▤ Keypad</button>`:'')+
-      (groupsApi.isUtilityTabVisible(state,'library')
-        ?`<button type="button" data-register-tab="library" class="${registerTab==='library'?'active':''}" aria-selected="${registerTab==='library'}">☰ Library</button>`:'');
+      `<button type="button" class="newGroupTab" data-create-favorite-group="true" title="Create a Favorites page">＋ Page</button>`+
+      (groupsApi.isUtilityTabVisible(state,'keypad')?
+        `<button type="button" data-register-tab="keypad" class="${registerTab==='keypad'?'active':''}" aria-selected="${registerTab==='keypad'}">Keypad</button>`:'')+
+      (groupsApi.isUtilityTabVisible(state,'library')?
+        `<button type="button" data-register-tab="library" class="${registerTab==='library'?'active':''}" aria-selected="${registerTab==='library'}">Library</button>`:'');
     tabBar.scrollLeft=previousScroll;
-    const selectedGroupName=currentGroup.name;
     $('favoritesToolbar').hidden=registerTab!=='favorites';
-    $('currentFavoriteName').textContent=selectedGroupName;
+    $('currentFavoriteName').textContent=currentGroup.name;
+    $('gridModeDescription').textContent=gridEditMode?'Editing tiles on this page':'Tap a tile to add it to the sale';
+    $('editGridLayout').textContent=gridEditMode?'✓ Done':'✎ Edit grid';
+    $('editGridLayout').classList.toggle('gridModeActive',gridEditMode);
+    $('gridEditHelp').hidden=!(gridEditMode&&registerTab==='favorites');
     $('libraryFavoritesTarget').hidden=registerTab!=='library';
-    $('libraryFavoriteGroupName').textContent='★ Adding to: '+selectedGroupName;
-    const tabHint=registerTab==='favorites'
-      ?'Tap an item to add it to the sale. Edit Items changes this tab, not your Square catalog.'
-      :registerTab==='keypad'?'Enter a custom dollar amount.'
-      :'Browse all your items. ★ adds an item to the selected Favorites tab.';
-    $('catalogHint').textContent=tabHint;
-    $('searchWrap').hidden=registerTab==='keypad';
-    $('itemSearch').placeholder=registerTab==='favorites'?'Search '+currentGroup.name:'Search the item library';
+    $('libraryFavoriteGroupName').textContent='★ Adding to: '+currentGroup.name;
+    $('catalogHint').textContent=registerTab==='favorites'?
+      (gridEditMode?'Add, color, move or remove tiles from your Favorites grid.':'Tap a tile to add items to the current sale.'):
+      registerTab==='keypad'?'Enter a custom dollar amount.':'Browse all items or search by category.';
+    $('searchWrap').hidden=registerTab==='keypad'||(registerTab==='favorites'&&gridEditMode);
+    $('itemSearch').placeholder=registerTab==='favorites'?'Search '+currentGroup.name:'Search the Item Library';
     $('categories').hidden=registerTab!=='library';
     $('productGrid').hidden=registerTab==='keypad';
     $('keypadPanel').hidden=registerTab!=='keypad';
-    const cats=['All',...new Set(state.products.map(x=>x.category||'Other'))];
-    if(!cats.includes(category))category='All';
-    $('categories').innerHTML=cats.map(x=>`<button class="chip ${x===category?'active':''}" data-cat="${e(x)}">${e(x)}</button>`).join('');
-    let products=[];
+    const categories=['All',...new Set(state.products.map(p=>p.category||'Other'))];
+    if(!categories.includes(category))category='All';
+    $('categories').innerHTML=categories.map(x=>
+      `<button class="chip ${x===category?'active':''}" data-cat="${e(x)}">${e(x)}</button>`).join('');
+    const q=searchText.toLowerCase().trim();
     if(registerTab==='favorites'){
-      const q=searchText.toLowerCase().trim();
-      products=currentGroup.productIds.map(id=>state.products.find(p=>p.id===id)).filter(Boolean)
-        .filter(p=>!q||[p.name,p.category,...(p.variants||[])].join(' ').toLowerCase().includes(q));
+      const tiles=gridApi.tiles(state,currentGroup.id);
+      const matching=gridEditMode?tiles:tiles.filter(tile=>{
+        const p=state.products.find(x=>x.id===tile.productId);
+        const title=tile.type==='item'?p?.name:tile.type==='category'?tile.category:'Custom amount';
+        return !q||[title,p?.category].filter(Boolean).join(' ').toLowerCase().includes(q);
+      });
+      const placeholders=q&&!gridEditMode?0:Math.max(0,Math.min((window.innerWidth<500?6:20)-matching.length,window.innerWidth<500?2:12));
+      $('productGrid').classList.add('squareTileGrid');
+      $('productGrid').setAttribute('aria-label',currentGroup.name+' tile grid');
+      $('productGrid').innerHTML=matching.map(tile=>renderSquareTile(tile,currentGroup)).join('')+
+        Array.from({length:placeholders},(_,index)=>gridEditMode
+          ?`<button type="button" class="squareTileEmpty squareTileAdd" data-add-grid-tile="true" aria-label="Add a tile to the grid"><span>＋</span><small>Add tile</small></button>`
+          :'<div class="squareTileEmpty" aria-hidden="true"></div>').join('')+
+        (matching.length===0&&!placeholders?'<p class="empty">No matching tiles. Clear your search to see more.</p>':'');
     }else if(registerTab==='library'){
-      const q=searchText.toLowerCase().trim();
-      products=state.products.filter(p=>(category==='All'||p.category===category)
-        &&(!q||[p.name,p.category,...(p.variants||[])].join(' ').toLowerCase().includes(q)));
-    }
-    $('productGrid').setAttribute('aria-label',registerTab==='favorites'?currentGroup.name+' favorites':'Item library');
-    $('productGrid').innerHTML=products.length?products.map(p=>`
-      <div class="productTile">
+      const products=state.products.filter(p=>(category==='All'||p.category===category)&&
+        (!q||[p.name,p.category,...(p.variants||[])].join(' ').toLowerCase().includes(q)));
+      $('productGrid').classList.remove('squareTileGrid');
+      $('productGrid').setAttribute('aria-label','Item Library');
+      $('productGrid').innerHTML=products.length?products.map(p=>`<div class="productTile">
         <button class="product" type="button" data-product="${e(p.id)}" aria-label="Add ${e(p.name)}">
           <span class="emoji" aria-hidden="true">${e(p.icon||'🧵')}</span>
-          <span class="tileInfo"><span class="name">${e(p.name)}</span><span class="tileMeta">${e(p.category||'Item')}${operationsApi.inventoryRecord(state,p.id).enabled?
-  ' · '+(operationsApi.inventoryRecord(state,p.id).quantity?'In stock: '+operationsApi.inventoryRecord(state,p.id).quantity:'Out of stock'):''}</span></span>
-          <span class="${p.price===null?'unverified':'price'}">${format(p.price)}${p.scoops?' · '+p.scoops+' scoop'+(p.scoops>1?'s':''):''}</span>
+          <span class="tileInfo"><span class="name">${e(p.name)}</span><span class="tileMeta">${e(p.category||'Other')}</span></span>
+          <span class="${p.price===null?'unverified':'price'}">${format(p.price)}</span>
         </button>
-        ${registerTab==='library'?`<button type="button" class="favoriteToggle ${currentGroup.productIds.includes(p.id)?'active':''}" data-favorite="${e(p.id)}" aria-label="${currentGroup.productIds.includes(p.id)?'Remove from':'Add to'} ${e(currentGroup.name)}" aria-pressed="${currentGroup.productIds.includes(p.id)}">${currentGroup.productIds.includes(p.id)?'★':'☆'}</button>`:''}
-      </div>`).join(''):registerTab!=='keypad'
-        ?(searchText?'<p class="empty">No matching items. Clear the search to see more.</p>':'<p class="empty">No items in this group yet. Tap Edit items to add favorites.</p>'):'';
+        <button type="button" class="favoriteToggle ${currentGroup.productIds.includes(p.id)?'active':''}"
+          data-favorite="${e(p.id)}" aria-label="${currentGroup.productIds.includes(p.id)?'Remove from':'Add to'} ${e(currentGroup.name)}"
+          aria-pressed="${currentGroup.productIds.includes(p.id)}">${currentGroup.productIds.includes(p.id)?'★':'☆'}</button>
+      </div>`).join(''):'<p class="empty">No items found in this category.</p>';
+    }
     $('keypadAmount').textContent=format(Number(amountDigits||'0'));
     $('addCustomAmount').disabled=!Number(amountDigits||0)||Number(amountDigits)>1000000;
   }
