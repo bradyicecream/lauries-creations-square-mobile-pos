@@ -16,11 +16,12 @@ assert.ok(html.indexOf('operations-ui.js')<html.indexOf('app.js'));
 for(const name of ['staff','inventory','cashDrawer','loyalty','displayPreview','connectionInfo','checkout']){
   assert.ok(op.includes('function '+name+'('),'Missing workflow '+name);
 }
-assert.ok(op.includes('a.charges.map'),'Required fees must be shown before optional tip');
-assert.ok(op.includes('baseCents:a.baseTotalCents'),'Sandbox callback validates mandatory charge base');
+assert.ok(op.includes('cash.charges.map'),'Service charge must appear on cash and card');
+assert.ok(op.includes('card.mandatoryGratuityCents'),'Card-only Gratuity shown separately');
+assert.ok(op.includes('baseCents:card.baseTotalCents'),'Sandbox callback validates card-only Gratuity base');
 assert.ok(op.includes('model.quickCashAmounts'),'Cash suggestions computed dynamically');
 assert.ok(op.includes('model.tipAmount'),'Tip selection calculates real money');
-assert.ok(op.includes("root.LaurieSquare.takePayment(a.total,state.saleId,note.slice(0,450),selectedTip)"),'Tips passed separately to native Sandbox SDK');
+assert.ok(op.includes("root.LaurieSquare.takePayment(card.total,state.saleId,note.slice(0,450),selectedTip)"),'Gratuity is in card base; voluntary tip separate');
 assert.ok(op.includes("model.recordSale(state,'local-cash'"),'Local cash sales recorded independently');
 assert.ok(js.includes("operationsApi.recordSale(state,'sandbox-card'"),'Inventory updated on successful Sandbox payment');
 assert.ok(js.includes("operationsApi.available"),'Inventory guard during item addition');
