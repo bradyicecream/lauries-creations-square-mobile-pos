@@ -56,7 +56,19 @@ class MainActivity : Activity() {
             if (!squareReady) return "not-configured"
             return if (MobilePaymentsSdk.authorizationManager().authorizationState.isAuthorized) "authorized-sandbox" else "unauthorized-sandbox"
         }
-        @JavascriptInterface fun configureSquare() = runOnUiThread { configureSquareDialog() }
+        @JavascriptInterface fun configureSquare() = runOnUiThread {
+            try {
+                configureSquareDialog()
+            } catch (error: Exception) {
+                android.util.Log.e("LauriePOS", "Sandbox setup screen could not open", error)
+                AlertDialog.Builder(this@MainActivity)
+                    .setTitle("Square Sandbox setup error")
+                    .setMessage("The connection screen could not open: ${error.javaClass.simpleName}. Check your Android version and Square SDK compatibility, then reopen the app.")
+                    .setPositiveButton("OK", null)
+                    .show()
+                notifyUI("error", "Square connection setup failed: ${error.javaClass.simpleName}")
+            }
+        }
         @JavascriptInterface fun readerSettings() = runOnUiThread {
             if (!squareReady || !MobilePaymentsSdk.authorizationManager().authorizationState.isAuthorized) {
                 notifyUI("error", "Connect to Square Sandbox first.")
@@ -114,17 +126,36 @@ class MainActivity : Activity() {
 
     private fun configureSquareDialog() {
         if (!squareReady) {
-            notifyUI("error", "Add the Sandbox Application ID as the build secret SQUARE_SANDBOX_APP_ID, then rebuild the APK.")
+            val detail = if (BuildConfig.SQUARE_SANDBOX_APP_ID.isBlank()) {
+                "This installed APK was built without the Square Sandbox Application ID. Check the GitHub SQUARE_SANDBOX_APP_ID build secret and reinstall a correctly configured APK."
+            } else {
+                "The APK contains a Square Application ID, but the Mobile Payments SDK was not initialized in Sandbox mode. Restart the app and check SDK/device compatibility."
+            }
+            AlertDialog.Builder(this)
+                .setTitle("Square Sandbox not ready")
+                .setMessage(detail + "\\n\\nApp version: " + BuildConfig.VERSION_NAME)
+                .setPositiveButton("OK", null)
+                .show()
             return
         }
         val pendingPermissions = requiredPermissions()
         if (pendingPermissions.isNotEmpty()) {
-            requestPermissions(pendingPermissions, 140)
-            Toast.makeText(this, "Grant permissions, then tap Connect Square again.", Toast.LENGTH_LONG).show()
+            AlertDialog.Builder(this)
+                .setTitle("Allow Square device permissions")
+                .setMessage("Square needs Android device permissions before it can connect. Tap Continue, grant the requested permissions, and the setup form will open automatically. If you previously denied a permission, open Android Settings and allow it for Laurie’s Creations POS.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Continue") { _, _ ->
+                    requestPermissions(pendingPermissions, 140)
+                }.show()
             return
         }
         if (MobilePaymentsSdk.authorizationManager().authorizationState.isAuthorized) {
-            notifyUI("status", "Already connected to Square Sandbox. Use Readers to pair a mock reader.")
+            AlertDialog.Builder(this)
+                .setTitle("Square Sandbox already connected")
+                .setMessage("This register is already authorized for Sandbox test payments. Tap Reader Settings or use the mock reader for a test checkout.")
+                .setPositiveButton("OK", null)
+                .show()
+            notifyUI("authorized", "Square Sandbox is already connected.")
             MockReaderUI.show()
             return
         }
@@ -172,6 +203,24 @@ class MainActivity : Activity() {
                     notifyUI("error", "Cannot authorize Square Sandbox: ${ex.javaClass.simpleName}")
                 }
             }.show()
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != 140) return
+        if (requiredPermissions().isEmpty()) {
+            configureSquareDialog()
+        } else {
+            AlertDialog.Builder(this)
+                .setTitle("Square permissions still needed")
+                .setMessage("At least one required Android permission is not granted. Open Settings → Apps → Laurie’s Creations POS → Permissions, allow the requested permissions, then return and tap Connect Sandbox.")
+                .setPositiveButton("OK", null)
+                .show()
+        }
     }
 
     private fun startSandboxPayment(amountCents: Int, referenceId: String, note: String) {
