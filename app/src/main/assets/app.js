@@ -25,6 +25,8 @@
   let state;
   try {state=JSON.parse(localStorage.getItem(KEY))||defaultState();}catch(_){state=defaultState();}
   if(!Array.isArray(state.products)||!Array.isArray(state.cart)||!Array.isArray(state.flavors))state=defaultState();
+  const groupsApi=window.LaurieFavoriteGroups;
+  groupsApi.normalize(state); // Migrates older single Favorites lists without deleting them.
   const $=id=>document.getElementById(id);
   const format=cents=>cents===null||!Number.isSafeInteger(cents)?'PRICE NEEDED':(cents/100).toLocaleString('en-US',{style:'currency',currency:'USD'});
   const e=value=>String(value??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
@@ -36,36 +38,50 @@
   let activeNav='checkout';
   let searchText='';
   let amountDigits='';
-  if(!Array.isArray(state.favorites))state.favorites=['tumbler','autism','halloween','ice1','ice2'];
+  // Every Favorites group has its own independent, ordered item list.
   let modalSave=()=>{};
   function openModal(title,body,buttons){$('dialogTitle').textContent=title;$('dialogBody').innerHTML=body;$('dialogActions').innerHTML='';for(const b of buttons){const bt=document.createElement('button');bt.type='button';bt.className=b.kind||'secondary';bt.textContent=b.label;bt.addEventListener('click',b.click);$('dialogActions').appendChild(bt);}if(!$('dialog').open)$('dialog').showModal();}
   function closeModal(){$('dialog').close();}
   $('closeDialog').addEventListener('click',closeModal);
   $('dialogForm').addEventListener('submit',ev=>ev.preventDefault());
   function catalog(){
-    if(!Array.isArray(state.favorites))state.favorites=[];
-    const tabs={favorites:'Tap a favorite to customize and add to your sale.',keypad:'Enter a custom dollar amount.',library:'Browse or search all of your items.'};
-    $('catalogHint').textContent=tabs[registerTab];
+    const currentGroup=groupsApi.active(state);
+    const tabBar=$('registerTabs');
+    const previousScroll=tabBar.scrollLeft;
+    const names=state.favoriteGroups.map(g=>{
+      const selected=registerTab==='favorites'&&currentGroup.id===g.id;
+      return `<button type="button" data-group-id="${e(g.id)}" class="${selected?'active':''}" aria-selected="${selected}" title="${e(g.name)}">★ ${e(g.name)}</button>`;
+    }).join('');
+    tabBar.innerHTML=names+
+      `<button type="button" class="newGroupTab" data-create-favorite-group="true" title="Create new Favorites tab">＋ Tab</button>`+
+      `<button type="button" data-register-tab="keypad" class="${registerTab==='keypad'?'active':''}" aria-selected="${registerTab==='keypad'}">▤ Keypad</button>`+
+      `<button type="button" data-register-tab="library" class="${registerTab==='library'?'active':''}" aria-selected="${registerTab==='library'}">☰ Library</button>`;
+    tabBar.scrollLeft=previousScroll;
+    const selectedGroupName=currentGroup.name;
+    $('favoritesToolbar').hidden=registerTab!=='favorites';
+    $('currentFavoriteName').textContent=selectedGroupName;
+    $('libraryFavoritesTarget').hidden=registerTab!=='library';
+    $('libraryFavoriteGroupName').textContent='★ Adding to: '+selectedGroupName;
+    const tabHint=registerTab==='favorites'
+      ?'Tap an item to add it to the sale. Edit Items changes this tab, not your Square catalog.'
+      :registerTab==='keypad'?'Enter a custom dollar amount.'
+      :'Browse all your items. ★ adds an item to the selected Favorites tab.';
+    $('catalogHint').textContent=tabHint;
     $('searchWrap').hidden=registerTab!=='library';
     $('categories').hidden=registerTab!=='library';
     $('productGrid').hidden=registerTab==='keypad';
     $('keypadPanel').hidden=registerTab!=='keypad';
-    for(const b of $('registerTabs').querySelectorAll('[data-register-tab]')){
-      const selected=b.dataset.registerTab===registerTab;
-      b.classList.toggle('active',selected);
-      b.setAttribute('aria-selected',String(selected));
-    }
     const cats=['All',...new Set(state.products.map(x=>x.category||'Other'))];
     if(!cats.includes(category))category='All';
     $('categories').innerHTML=cats.map(x=>`<button class="chip ${x===category?'active':''}" data-cat="${e(x)}">${e(x)}</button>`).join('');
-    let products=state.products.filter(p=>{
-      if(registerTab==='favorites')return state.favorites.includes(p.id);
-      if(registerTab==='library'){
-        const q=searchText.toLowerCase().trim();
-        return (category==='All'||p.category===category)&&(!q||[p.name,p.category,...(p.variants||[])].join(' ').toLowerCase().includes(q));
-      }
-      return false;
-    });
+    let products=[];
+    if(registerTab==='favorites'){
+      products=currentGroup.productIds.map(id=>state.products.find(p=>p.id===id)).filter(Boolean);
+    }else if(registerTab==='library'){
+      const q=searchText.toLowerCase().trim();
+      products=state.products.filter(p=>(category==='All'||p.category===category)
+        &&(!q||[p.name,p.category,...(p.variants||[])].join(' ').toLowerCase().includes(q)));
+    }
     $('productGrid').innerHTML=products.length?products.map(p=>`
       <div class="productTile">
         <button class="product" type="button" data-product="${e(p.id)}" aria-label="Add ${e(p.name)}">
@@ -73,8 +89,9 @@
           <span class="name">${e(p.name)}</span>
           <span class="${p.price===null?'unverified':'price'}">${format(p.price)}${p.scoops?' · '+p.scoops+' scoop'+(p.scoops>1?'s':''):''}</span>
         </button>
-        ${registerTab==='library'? `<button type="button" class="favoriteToggle ${state.favorites.includes(p.id)?'active':''}" data-favorite="${e(p.id)}" aria-label="${state.favorites.includes(p.id)?'Remove from':'Add to'} Favorites" aria-pressed="${state.favorites.includes(p.id)}">${state.favorites.includes(p.id)?'★':'☆'}</button>`:''}
-      </div>`).join(''):'<p class="empty">No items here yet. Open Library to add favorites.</p>';
+        ${registerTab==='library'?`<button type="button" class="favoriteToggle ${currentGroup.productIds.includes(p.id)?'active':''}" data-favorite="${e(p.id)}" aria-label="${currentGroup.productIds.includes(p.id)?'Remove from':'Add to'} ${e(currentGroup.name)}" aria-pressed="${currentGroup.productIds.includes(p.id)}">${currentGroup.productIds.includes(p.id)?'★':'☆'}</button>`:''}
+      </div>`).join(''):registerTab!=='keypad'
+        ?'<p class="empty">No items in this tab yet. Tap Edit items or open Library to add favorites.</p>':'';
     $('keypadAmount').textContent=format(Number(amountDigits||'0'));
     $('addCustomAmount').disabled=!Number(amountDigits||0)||Number(amountDigits)>1000000;
   }
@@ -134,7 +151,7 @@
     <label class="field">Number of ice cream scoops (0–6)<input id="productScoops" type="number" min="0" max="6" value="${p?.scoops||0}"></label>
     <label class="field">Modifiers (one per line: name|upcharge in dollars)<textarea id="productExtras" rows="4" style="width:100%" placeholder="Gift wrap|1.00">${e((p?.extras||[]).map(x=>x.name+'|'+(x.price/100).toFixed(2)).join('\n'))}</textarea></label>
     <p class="fine">Only prices you enter are used for new cart items. Existing cart items keep their previous price until edited.</p>`,[
-      ...(p?[{label:'Delete product',click:()=>{if(!confirm('Delete product from catalog? Items already in cart remain.'))return;state.products=state.products.filter(x=>x.id!==p.id);closeModal();render();}}]:[]),
+      ...(p?[{label:'Delete product',click:()=>{if(!confirm('Delete product from catalog? Items already in cart remain.'))return;state.products=state.products.filter(x=>x.id!==p.id);for(const g of state.favoriteGroups)g.productIds=g.productIds.filter(x=>x!==p.id);groupsApi.normalize(state);closeModal();render();}}]:[]),
       {label:'Cancel',click:closeModal},
       {label:'Save product',kind:'primary',click:()=>{
         const name=$('productName').value.trim(),cat=$('productCategory').value.trim(),price=moneyIn($('productPrice').value),scoops=Number($('productScoops').value);
@@ -172,7 +189,7 @@
       {label:'Save tax',kind:'primary',click:()=>{const rate=Number($('taxRate').value);if(!Number.isFinite(rate)||rate<0||rate>30){toast('Enter a tax rate from 0–30%');return;}state.taxPercent=rate;save();closeModal();render();toast('Tax updated');}}
     ]);
   }
-  $('importFile').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{const src=JSON.parse(await file.text());if(!Array.isArray(src.products)||!Array.isArray(src.flavors)||!Array.isArray(src.cart))throw Error('Invalid backup');if(!confirm('Replace your current register settings and cart with this backup?'))return;state=src;state.saleId=makeId();state.paidSaleId=null;save();closeModal();render();toast('Backup restored — verify prices');}catch(_){toast('Could not import this backup');}finally{ev.target.value='';}});
+  $('importFile').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{const src=JSON.parse(await file.text());if(!Array.isArray(src.products)||!Array.isArray(src.flavors)||!Array.isArray(src.cart))throw Error('Invalid backup');if(!confirm('Replace your current register settings and cart with this backup?'))return;state=src;groupsApi.normalize(state);state.saleId=makeId();state.paidSaleId=null;save();closeModal();render();toast('Backup restored — verify prices');}catch(_){toast('Could not import this backup');}finally{ev.target.value='';}});
   function squareState(){try{return window.LaurieSquare?.squareState?.()||'browser-preview';}catch(_){return 'unavailable';}}
   function syncSquareStatus(){const v=squareState(),text={'not-configured':'Add Sandbox app ID','unauthorized-sandbox':'Sandbox not connected','authorized-sandbox':'Sandbox connected','browser-preview':'Browser preview only','unavailable':'Square unavailable'};$('sqStatus').textContent=text[v]||v;}
   window.receiveSquareEvent=function(payload){let msg;try{msg=JSON.parse(payload);}catch(_){return;}
@@ -255,17 +272,154 @@
       }}
     ]);
   }
+  function openCreateFavoritesTab(){
+    openModal('Create Favorites tab',
+      '<p class="favoriteManagerHelp">Create another group of favorite item buttons. Tabs are stored on this device and can be renamed or rearranged later.</p>'+
+      '<label class="field">Tab name<input id="newFavoriteTabName" maxlength="30" placeholder="Example: Holiday Items" autocomplete="off"></label>',[
+      {label:'Cancel',click:closeModal},
+      {label:'Create tab',kind:'primary',click:()=>{
+        const result=groupsApi.addGroup(state,$('newFavoriteTabName').value);
+        if(!result.ok){toast(result.message);return;}
+        registerTab='favorites';save();closeModal();render();toast(result.group.name+' tab created');
+      }}
+    ]);
+    $('newFavoriteTabName').focus();
+  }
+  function openRenameFavoritesTab(id){
+    const group=state.favoriteGroups.find(g=>g.id===id);
+    if(!group)return;
+    openModal('Rename Favorites tab',
+      '<label class="field">Tab name<input id="renameFavoriteTabName" maxlength="30" autocomplete="off" value="'+e(group.name)+'"></label>',[
+      {label:'Cancel',click:openManageFavoritesTabs},
+      {label:'Save name',kind:'primary',click:()=>{
+        const result=groupsApi.renameGroup(state,id,$('renameFavoriteTabName').value);
+        if(!result.ok){toast(result.message);return;}
+        save();render();openManageFavoritesTabs();toast('Tab renamed');
+      }}
+    ]);
+    $('renameFavoriteTabName').focus();
+  }
+  function openManageFavoritesTabs(){
+    const groups=state.favoriteGroups;
+    const rows=groups.map((group,index)=>`
+      <div class="favoriteGroupRow">
+        <div class="groupName"><strong>${e(group.name)} ${state.activeFavoriteGroupId===group.id?'✓':''}</strong><small>${group.productIds.length} saved item(s)</small></div>
+        <div class="favoriteGroupActions">
+          <button type="button" data-fav-action="open" data-fav-id="${e(group.id)}" title="Open tab">Open</button>
+          <button type="button" data-fav-action="items" data-fav-id="${e(group.id)}" title="Edit items">Items</button>
+          <button type="button" data-fav-action="rename" data-fav-id="${e(group.id)}">Rename</button>
+          <button type="button" data-fav-action="left" data-fav-id="${e(group.id)}" ${index===0?'disabled':''} aria-label="Move ${e(group.name)} left">←</button>
+          <button type="button" data-fav-action="right" data-fav-id="${e(group.id)}" ${index===groups.length-1?'disabled':''} aria-label="Move ${e(group.name)} right">→</button>
+          <button type="button" data-fav-action="delete" data-fav-id="${e(group.id)}" ${groups.length===1?'disabled':''}>Delete</button>
+        </div>
+      </div>`).join('');
+    openModal('Edit Favorites tabs',
+      '<p class="favoriteManagerHelp">Add your own tab names and groups. Use ← → to change the order. Deleting a tab never deletes your actual products.</p>'+rows,[
+      {label:'Done',click:closeModal},
+      {label:'＋ New tab',kind:'primary',click:openCreateFavoritesTab}
+    ]);
+  }
+  function chooseFavoriteGroup(){
+    const buttons=state.favoriteGroups.map(group=>`
+      <button class="utilityRow" type="button" data-fav-action="select" data-fav-id="${e(group.id)}">★ ${e(group.name)} <span>${group.id===state.activeFavoriteGroupId?'✓':'›'}</span></button>`).join('');
+    openModal('Choose Favorites group',
+      '<p class="favoriteManagerHelp">Stars in the Item Library add or remove items from the chosen group.</p>'+buttons,[
+      {label:'Cancel',click:closeModal},
+      {label:'＋ New group',kind:'primary',click:openCreateFavoritesTab}
+    ]);
+  }
+  function editFavoriteItems(id){
+    const group=state.favoriteGroups.find(g=>g.id===id);
+    if(!group)return;
+    const selected=new Set(group.productIds);
+    const rows=state.products.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`
+      <label class="favoriteChoice">
+        <input type="checkbox" data-favorite-item="${e(p.id)}" ${selected.has(p.id)?'checked':''}>
+        <span>${e(p.icon||'🧵')} ${e(p.name)}<small> · ${e(p.category||'Other')}</small></span>
+      </label>`).join('');
+    openModal('Items in '+group.name,
+      '<p class="favoriteManagerHelp">Check the products you want as buttons on this Favorites tab. Items remain available in the full Library even if unchecked.</p>'+
+      '<label class="field">Search products<input id="favoriteItemsSearch" type="search" placeholder="Filter products" autocomplete="off"></label>'+
+      '<div class="favoriteChooser" id="favoriteItemsChooser">'+rows+'</div>',[
+      {label:'Cancel',click:closeModal},
+      {label:'Reorder items',click:()=>reorderFavoriteItems(id)},
+      {label:'Save favorites',kind:'primary',click:()=>{
+        const chosen=[...$('favoriteItemsChooser').querySelectorAll('[data-favorite-item]:checked')].map(input=>input.dataset.favoriteItem);
+        groupsApi.setProducts(state,id,chosen);
+        state.activeFavoriteGroupId=id;registerTab='favorites';save();closeModal();render();toast('Favorites updated in '+group.name);
+      }}
+    ]);
+    $('favoriteItemsSearch').addEventListener('input',ev=>{
+      const query=ev.target.value.trim().toLowerCase();
+      for(const row of $('favoriteItemsChooser').querySelectorAll('.favoriteChoice')){
+        row.hidden=Boolean(query)&&!row.textContent.toLowerCase().includes(query);
+      }
+    });
+  }
+  function reorderFavoriteItems(id){
+    const group=state.favoriteGroups.find(g=>g.id===id);
+    if(!group)return;
+    const existing=group.productIds.filter(productId=>state.products.some(p=>p.id===productId));
+    const rows=existing.map((productId,index)=>{
+      const p=productById(productId);
+      return `<div class="favoriteItemRow">
+        <span class="favoriteItemName">${e(p?.icon||'★')} ${e(p?.name||'Removed item')}</span>
+        <div class="favoriteItemActions">
+          <button type="button" data-fav-action="move-item-up" data-fav-id="${e(group.id)}" data-fav-product="${e(productId)}" ${index===0?'disabled':''} aria-label="Move ${e(p?.name||'item')} up">↑</button>
+          <button type="button" data-fav-action="move-item-down" data-fav-id="${e(group.id)}" data-fav-product="${e(productId)}" ${index===existing.length-1?'disabled':''} aria-label="Move ${e(p?.name||'item')} down">↓</button>
+        </div>
+      </div>`;
+    }).join('');
+    openModal('Arrange '+group.name,
+      '<p class="favoriteManagerHelp">Move favorite item buttons up or down. Changes save immediately.</p>'+(rows||'<p>No favorites selected yet. Add items first.</p>'),[
+      {label:'Done',click:closeModal},
+      {label:'＋ Edit items',kind:'primary',click:()=>editFavoriteItems(id)}
+    ]);
+  }
+  function handleFavoriteManagerAction(button){
+    const id=button.dataset.favId,action=button.dataset.favAction;
+    if(action==='open'){
+      state.activeFavoriteGroupId=id;registerTab='favorites';save();closeModal();render();return;
+    }
+    if(action==='select'){
+      state.activeFavoriteGroupId=id;save();closeModal();catalog();toast('Stars now edit '+groupsApi.active(state).name);return;
+    }
+    if(action==='items'){editFavoriteItems(id);return;}
+    if(action==='rename'){openRenameFavoritesTab(id);return;}
+    if(action==='left'||action==='right'){
+      if(groupsApi.moveGroup(state,id,action==='left'?-1:1)){save();render();openManageFavoritesTabs();}
+      return;
+    }
+    if(action==='delete'){
+      const group=state.favoriteGroups.find(g=>g.id===id);
+      if(!group||state.favoriteGroups.length===1)return;
+      if(!confirm('Delete the "'+group.name+'" Favorites tab? Your products will remain in the Item Library.'))return;
+      groupsApi.removeGroup(state,id);save();render();openManageFavoritesTabs();toast('Tab deleted; products kept');return;
+    }
+    if(action==='move-item-up'||action==='move-item-down'){
+      if(groupsApi.moveProduct(state,id,button.dataset.favProduct,action==='move-item-up'?-1:1)){
+        save();render();reorderFavoriteItems(id);
+      }
+    }
+  }
   $('registerTabs').addEventListener('click',ev=>{
-    const btn=ev.target.closest('[data-register-tab]');if(!btn)return;
-    registerTab=btn.dataset.registerTab;catalog();
+    const create=ev.target.closest('[data-create-favorite-group]');
+    if(create){openCreateFavoritesTab();return;}
+    const groupButton=ev.target.closest('[data-group-id]');
+    if(groupButton){
+      state.activeFavoriteGroupId=groupButton.dataset.groupId;
+      registerTab='favorites';save();catalog();return;
+    }
+    const btn=ev.target.closest('[data-register-tab]');
+    if(btn){registerTab=btn.dataset.registerTab;catalog();}
   });
   $('itemSearch').addEventListener('input',ev=>{searchText=ev.target.value;catalog();});
   $('productGrid').addEventListener('click',ev=>{
     const favorite=ev.target.closest('[data-favorite]');if(!favorite)return;
     const id=favorite.dataset.favorite;
-    if(state.favorites.includes(id))state.favorites=state.favorites.filter(x=>x!==id);
-    else state.favorites.push(id);
-    save();catalog();toast('Favorites updated');
+    const group=groupsApi.active(state);
+    const added=groupsApi.toggleProduct(state,group.id,id);
+    save();catalog();toast((added?'Added to ':'Removed from ')+group.name);
   });
   $('bottomNav').addEventListener('click',ev=>{
     const b=ev.target.closest('[data-nav]');if(b)showSection(b.dataset.nav);
@@ -273,6 +427,14 @@
   $('manageFromMore').onclick=manage;
   $('flavorsFromMore').onclick=flavorsEditor;
   $('newFromMore').onclick=()=>editProduct();
+  $('manageFavoriteTabs').onclick=openManageFavoritesTabs;
+  $('favoriteGroupsFromMore').onclick=openManageFavoritesTabs;
+  $('editActiveFavorites').onclick=()=>editFavoriteItems(groupsApi.active(state).id);
+  $('chooseFavoriteGroup').onclick=chooseFavoriteGroup;
+  $('dialogBody').addEventListener('click',ev=>{
+    const button=ev.target.closest('[data-fav-action]');
+    if(button)handleFavoriteManagerAction(button);
+  });
 
   function restoreSavedCatalog(){
     const incoming=Array.isArray(savedCatalog.products)?savedCatalog.products:[];
