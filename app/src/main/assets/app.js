@@ -148,9 +148,10 @@
       if(charge){$(labelId).textContent=charge.label+' (required)';$(amountId).textContent=format(charge.amountCents);}
     }
     const paid=state.paidSaleId===state.saleId;
-    $('checkout').disabled=!state.cart.length||a.incomplete||paid||a.total<=0;
-    $('checkout').textContent=paid?'Test sale completed':a.incomplete?'Review item prices':'Charge '+format(a.total)+' · TEST';
+    $('checkout').disabled=!state.cart.length||a.incomplete||paid||a.total<=0||Boolean(state.pendingSquare);
+    $('checkout').textContent=paid?'Test sale completed':state.pendingSquare?'Waiting for Square…':a.incomplete?'Review item prices':'Charge '+format(a.total)+' · TEST';
     $('checkoutNotice').textContent=paid?'Test sale completed; do not charge the same sale again.':
+      state.pendingSquare?'Sandbox payment in progress. Do not edit or re-charge this sale until Square returns a result.':
       a.incomplete?'One or more item prices or charge settings require review. Edit them in More.':
       a.charges.length?'Required charges are included in this total. Review tax treatment, amounts and Square location before checkout.':
       'Tax is set manually. Verify tax, modifiers, total, and Square location before checkout.';
@@ -172,6 +173,7 @@
   // Like a register's quick tile: one tap adds a simple item.
   // Products with variations, flavors, or modifier choices always open the options sheet.
   function addFromGrid(productId){
+    if(state.pendingSquare){toast('Wait for the Sandbox payment result.');return;}
     if(state.paidSaleId===state.saleId){toast('Clear the completed sale to begin another.');return;}
     const p=productById(productId);if(!p)return;
     if(!cartApi.canQuickAdd(p,modifiersApi.forProduct(state,p).length)){
@@ -183,7 +185,9 @@
     if(!result.ok){toast('Clear the completed sale first.');return;}
     save();render();toast(p.name+' added');
   }
-  function addOrEditItem(productId,index=null){if(state.paidSaleId===state.saleId){toast('This test sale is complete. Clear the sale to begin another.');return;}const p=productById(productId);if(!p)return;const current=index===null?null:state.cart[index];let chosenVariant=current?.variant||p.variants?.[0]||'';let choices=current?.flavors?.slice()||Array(p.scoops||0).fill('').map(()=>state.flavors.find(f=>f.active)?.id||'');let extras=(current?.extras||[]).map(x=>x.name);
+  function addOrEditItem(productId,index=null){
+    if(state.pendingSquare){toast('Wait for Square to finish the test payment.');return;}
+    if(state.paidSaleId===state.saleId){toast('This test sale is complete. Clear the sale to begin another.');return;}const p=productById(productId);if(!p)return;const current=index===null?null:state.cart[index];let chosenVariant=current?.variant||p.variants?.[0]||'';let choices=current?.flavors?.slice()||Array(p.scoops||0).fill('').map(()=>state.flavors.find(f=>f.active)?.id||'');let extras=(current?.extras||[]).map(x=>x.name);
     const variations=(p.variants||[]).length?`<label class="field">Variation<select id="choiceVariant">${p.variants.map(v=>`<option value="${e(v)}" ${v===chosenVariant?'selected':''}>${e(v)}${p.variantPrices&&p.variantPrices[v]!=null?' ('+format(p.variantPrices[v])+')':''}</option>`).join('')}</select></label>`:'';
     const flavorRows=Array.from({length:p.scoops||0},(_,j)=>`<label class="field">Scoop ${j+1}<select class="flavorSelect" data-scoop="${j}">${state.flavors.filter(f=>f.active||choices[j]===f.id).map(f=>`<option value="${e(f.id)}" ${choices[j]===f.id?'selected':''}>${e(f.name)}${f.price?' (+'+format(f.price)+')':''}${!f.active?' (unavailable)':''}</option>`).join('')}</select></label>`).join('');
     const extraRows=(p.extras||[]).length?`<div class="divider"></div><strong>Modifiers</strong>${p.extras.map((x,j)=>`<label class="field"><input type="checkbox" data-extra="${j}" ${extras.includes(x.name)?'checked':''}> ${e(x.name)} (+${format(x.price)})</label>`).join('')}`:'';
@@ -425,7 +429,7 @@
       {label:'Required charges',click:openChargeSettings},
       {label:'Restore saved library',click:restoreSavedCatalog},
       {label:'New product',click:()=>editProduct()},
-      {label:'Save tax',kind:'primary',click:()=>{const rate=Number($('taxRate').value);if(!Number.isFinite(rate)||rate<0||rate>30){toast('Enter a tax rate from 0–30%');return;}state.taxPercent=rate;save();closeModal();render();toast('Tax updated');}}
+      {label:'Save tax',kind:'primary',click:()=>{if(state.pendingSquare){toast('Wait for Square payment result.');return;}const rate=Number($('taxRate').value);if(!Number.isFinite(rate)||rate<0||rate>30){toast('Enter a tax rate from 0–30%');return;}state.taxPercent=rate;save();closeModal();render();toast('Tax updated');}}
     ]);
   }
   $('importFile').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{const src=JSON.parse(await file.text());if(!Array.isArray(src.products)||!Array.isArray(src.flavors)||!Array.isArray(src.cart))throw Error('Invalid backup');if(!confirm('Replace your current register settings and cart with this backup?'))return;state=src;groupsApi.normalize(state);modifiersApi.normalize(state);operationsApi.normalize(state);chargesApi.normalize(state);initOperationsUI();state.saleId=makeId();state.paidSaleId=null;state.pendingSquare=null;save();closeModal();render();toast('Backup restored — verify prices');}catch(_){toast('Could not import this backup');}finally{ev.target.value='';}});
@@ -445,7 +449,14 @@
         '\n\n'+(result.ok?'Local sale and stock updated.':'Local activity could not be recorded: '+result.error)+
         '\n\nCart is kept for review. Use Clear to begin a new sale.');
     }
-    else {toast(msg.message||msg.type);if(msg.type==='authorized')syncSquareStatus();}
+    else {
+      if(msg.type==='error'&&state.pendingSquare){
+        state.pendingSquare=null;save();renderCart();
+        alert('Square reported that the test payment was not completed. Check Sandbox payment activity before retrying.');
+      }
+      toast(msg.message||msg.type);
+      if(msg.type==='authorized')syncSquareStatus();
+    }
   };
   $('categories').addEventListener('click',ev=>{const b=ev.target.closest('[data-cat]');if(b){category=b.dataset.cat;catalog();}});
   $('productGrid').addEventListener('click',ev=>{const b=ev.target.closest('[data-product]');if(b)addFromGrid(b.dataset.product);});
@@ -454,6 +465,7 @@
     const increase=ev.target.closest('[data-inc-cart]');
     const decrease=ev.target.closest('[data-dec-cart]');
     if(!edit&&!increase&&!decrease)return;
+    if(state.pendingSquare){toast('Square payment is in progress.');return;}
     if(state.paidSaleId===state.saleId){toast('Clear the completed sale to change its items.');return;}
     const index=Number((edit||increase||decrease).dataset.editCart
       ??increase?.dataset.incCart??decrease?.dataset.decCart);
@@ -472,6 +484,7 @@
   $('dialogBody').addEventListener('click',ev=>{const b=ev.target.closest('[data-manage-product]');if(b)editProduct(b.dataset.manageProduct);});
   $('newProduct').onclick=()=>editProduct();$('settingsButton').onclick=manage;
   $('clearCart').onclick=()=>{
+    if(state.pendingSquare){toast('Wait for the Square Sandbox payment result before clearing.');return;}
     if((state.cart.length||state.saleNote)&&!confirm('Clear this sale and its note? Check payment status in Square first if you attempted checkout.'))return;
     state.cart=[];state.saleNote='';state.saleId=makeId();state.paidSaleId=null;state.pendingSquare=null;operationsApi.normalize(state).selectedCustomerId=null;render();
   };
@@ -789,6 +802,7 @@
     $('addCustomAmount').disabled=!Number(amountDigits||0)||Number(amountDigits)>1000000;
   });
   $('addCustomAmount').onclick=()=>{
+    if(state.pendingSquare){toast('Wait for Square payment result.');return;}
     if(state.paidSaleId===state.saleId){toast('Clear the completed sale first.');return;}
     const cents=Number(amountDigits||0);
     if(!Number.isSafeInteger(cents)||cents<=0||cents>1000000){toast('Enter a custom amount from $0.01 to $10,000.00');return;}
