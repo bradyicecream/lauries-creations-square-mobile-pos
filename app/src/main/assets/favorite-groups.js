@@ -11,7 +11,27 @@
   function updateLegacy(state){
     state.favorites=state.favoriteGroups[0].productIds.slice();
   }
+  // Visibility of optional checkout tools is a device-local display preference.
+  // Missing values on older installs default to visible.
+  function normalizeTabVisibility(state){
+    const input=state.checkoutTabVisibility;
+    state.checkoutTabVisibility={
+      keypad:input?.keypad!==false,
+      library:input?.library!==false
+    };
+    return state.checkoutTabVisibility;
+  }
+  function isUtilityTabVisible(state,tab){
+    if(tab!=='keypad'&&tab!=='library')return false;
+    return normalizeTabVisibility(state)[tab];
+  }
+  function setUtilityTabVisible(state,tab,visible){
+    if(tab!=='keypad'&&tab!=='library')return false;
+    normalizeTabVisibility(state)[tab]=Boolean(visible);
+    return true;
+  }
   function normalize(state){
+    normalizeTabVisibility(state);
     if(!Array.isArray(state.favoriteGroups)||!state.favoriteGroups.length){
       const initial=Array.isArray(state.favorites)?state.favorites:(state.products||[]).slice(0,8).map(p=>p.id);
       state.favoriteGroups=[{id:'favorites-default',name:'Favorites',productIds:initial}];
@@ -94,7 +114,7 @@
     [group.productIds[i],group.productIds[j]]=[group.productIds[j],group.productIds[i]];
     updateLegacy(state);return true;
   }
-  const api={normalize,active,addGroup,renameGroup,removeGroup,moveGroup,toggleProduct,setProducts,moveProduct};
+  const api={normalize,active,addGroup,renameGroup,removeGroup,moveGroup,toggleProduct,setProducts,moveProduct,normalizeTabVisibility,isUtilityTabVisible,setUtilityTabVisible};
   root.LaurieFavoriteGroups=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
