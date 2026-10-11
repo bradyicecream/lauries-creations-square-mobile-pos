@@ -186,3 +186,13 @@ dialog .modifierGroup{background:#faf8fc}
   .cataloghead h2{font-size:22px}
   .sandboxDivider{display:none}
 }
+
+/* Two-line current-sale row: large description and fast quantity controls. */
+.cartitem{display:grid;grid-template-columns:30px minmax(0,1fr) auto;align-items:start;gap:8px}
+.cartitem .itemText{padding-top:4px}
+.cartLineRight{display:flex;align-items:flex-end;flex-direction:column;gap:8px;min-width:94px}
+.cartLineRight .itemprice{font-size:13px;font-weight:790;padding-top:4px}
+.cartLineActions{display:flex;align-items:center;gap:4px}
+.cartLineActions .mini{min-height:32px;font-size:11px;padding:5px 8px}
+.cartLineActions .quantityAction{background:#f6f2f8;color:#633a84;min-width:30px;padding:4px 5px;font-size:17px;font-weight:750}
+@media(max-width:380px){.cartitem{gap:6px}.cartLineActions .mini{padding:5px 7px}.cartLineRight{min-width:88px}}
