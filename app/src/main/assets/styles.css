@@ -90,3 +90,27 @@ dialog{border:0;border-radius:16px;padding:0;width:min(96vw,520px);box-shadow:0 
 .utilityTabToggle>input{width:21px;height:21px;accent-color:var(--purple);flex:none;cursor:pointer}
 .utilityTabToggle>span{display:block;font-size:14px;font-weight:750;color:#3b3140}
 .utilityTabToggle small{display:block;font-size:11px;font-weight:400;color:var(--muted);margin-top:3px}
+
+/* Shared modifier editor and assignment picker for all catalog categories */
+.modProductHeading{font-size:15px;margin:15px 0 7px;color:var(--deep)}
+.productModifierChecklist{max-height:230px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:5px 10px;background:#faf8fc}
+.productModifierChecklist label{display:flex;align-items:center;gap:10px;min-height:43px;padding:7px 0;border-bottom:1px solid #eee7f0;font-size:13px;cursor:pointer}
+.productModifierChecklist label:last-child{border:0}
+.productModifierChecklist input{width:20px;height:20px;accent-color:var(--purple);flex:none}
+.productModifierChecklist span{flex:1;font-weight:650}
+.productModifierChecklist small{color:var(--muted);font-size:11px;font-weight:400}
+.modManagerRow{display:flex;align-items:center;gap:7px;border-bottom:1px solid var(--line);padding:9px 0}
+.modManagerRow:last-child{border:0}
+.modManagerLabel{flex:1;min-width:0;overflow-wrap:anywhere}
+.modManagerLabel strong{font-size:13px;display:block}
+.modManagerLabel small{font-size:11px;color:var(--muted);display:block;margin-top:3px}
+.modManagerRow button{font-size:12px;min-height:38px;flex:none}
+.modifierLimits{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.modifierEditRow{border:1px solid #e7e0ec;border-radius:10px;padding:10px;margin:9px 0;display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr) 40px;gap:7px;align-items:end;background:#fcfafd}
+.modifierEditRow>label{display:block;font-size:11px;font-weight:700;color:var(--deep)}
+.modifierEditRow input:not([type=checkbox]){display:block;width:100%;min-width:0;border:1px solid #d8cedf;border-radius:7px;margin-top:5px;padding:9px;font-size:13px;background:#fff}
+.modifierEditRow .modAvailability{display:flex;align-items:center;grid-column:1/3;gap:8px;font-size:12px;min-height:31px}
+.modifierEditRow .modAvailability input{width:19px;height:19px;accent-color:var(--purple)}
+.modifierEditRow .modRemove{grid-column:3;grid-row:1;min-height:40px;align-self:end;background:#faedef;color:#893944;font-size:16px}
+.modAddOption{display:block;width:100%;margin-top:10px}
+@media(max-width:450px){.modifierEditRow{grid-template-columns:minmax(0,1.3fr) minmax(0,.9fr) 34px;gap:6px;padding:8px}.modifierEditRow>label{font-size:10px}.modifierEditRow .modRemove{min-height:38px;padding:0}}
