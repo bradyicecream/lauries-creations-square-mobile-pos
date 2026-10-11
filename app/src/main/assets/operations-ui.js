@@ -138,7 +138,7 @@
      });
    }
    function displayPreview(){
-     const totals=ui.amounts();
+     const totals=ui.amounts(),cardTotals=root.LaurieCheckoutCharges.calculate(state,'card');
      const lines=state.cart.map(x=>'<div class="customerDisplayLine"><span>'+e(x.qty)+' × '+e(x.name)+'</span><strong>'+amt(x.price*x.qty)+'</strong></div>').join('');
      open('Customer-facing display preview',
        '<p class="opsWarning">Preview on this device only. A synchronized second iPad or Zebra display will require a hosted, authenticated connection; this preview does not transmit sales to another screen.</p>'+
@@ -146,8 +146,12 @@
        '<p>Welcome! Your order</p>'+(lines||'<div class="customerDisplayEmpty">Items will appear here as you build the sale.</div>')+
        '<div class="customerDisplayCharges">'+totals.charges.map(c=>
          '<div class="customerDisplayLine"><span>'+e(c.label)+' (required)</span><strong>'+amt(c.amountCents)+'</strong></div>').join('')+
-         '<div class="customerDisplayLine"><span>Tax</span><strong>'+amt(totals.tax)+'</strong></div></div>'+
-       '<div class="customerDisplayTotal"><span>Total</span><strong>'+amt(totals.total)+'</strong></div>'+
+         (cardTotals.mandatoryGratuityCents?
+           '<div class="customerDisplayLine"><span>Gratuity (card only)</span><strong>'+amt(cardTotals.mandatoryGratuityCents)+'</strong></div>':'')+
+         '</div>'+
+       '<div class="customerDisplayTotal"><span>Cash total</span><strong>'+amt(totals.total)+'</strong></div>'+
+       (cardTotals.mandatoryGratuityCents?
+         '<div class="customerDisplayTotal"><span>Card total</span><strong>'+amt(cardTotals.total)+'</strong></div>':'')+
        '<small>Handmade with love and a little bit of sparkle</small></div>',[
        {label:'Close preview',click:close}
      ]);
@@ -188,67 +192,76 @@
    }
    function checkout(){
      if(state.pendingSquare){toast('Wait for the Square Sandbox payment result.');return;}
-     const a=ui.amounts(),o=ops();
-     if(!state.cart.length||a.incomplete||a.total<=0||state.paidSaleId===state.saleId){toast('Review cart and prices first.');return;}
+     const cash=ui.amounts(),card=root.LaurieCheckoutCharges.calculate(state,'card');
+     if(!state.cart.length||cash.incomplete||card.incomplete||cash.total<=0||state.paidSaleId===state.saleId){
+       toast('Review cart and prices first.');return;
+     }
      const stock=state.cart.filter(x=>x.productId!=='manual').reduce((m,x)=>{
        m[x.productId]=(m[x.productId]||0)+x.qty;return m;
      },{});
      const exhausted=Object.entries(stock).find(([id,qty])=>!model.available(state,id,qty));
      if(exhausted){toast('Not enough local stock: '+(state.products.find(x=>x.id===exhausted[0])?.name||'item'));return;}
      let selectedTip=0;
-     let tendered=a.total;
      const tipButtons=[0,10,15,20,25].map(percent=>
        '<button type="button" class="tipChoice'+(percent===0?' active':'')+'" data-tip-percent="'+percent+'">'+(percent===0?'No tip':percent+'%')+'</button>').join('');
-     open('Checkout · Sandbox / cash',
-       '<p class="opsWarning">Square card payments use the Sandbox mock reader. Cash sales are stored only on this device.</p>'+
-       '<div class="checkoutSummary"><div><span>Item subtotal</span><strong>'+amt(a.sub)+'</strong></div>'+
-       a.charges.map(c=>'<div><span>'+e(c.label)+' (required)</span><strong>'+amt(c.amountCents)+'</strong></div>').join('')+
-       '<div><span>Tax</span><strong>'+amt(a.tax)+'</strong></div>'+
-       '<div><span>Additional voluntary tip</span><strong id="opsTipAmount">'+amt(0)+'</strong></div>'+
-       '<div class="checkoutGrand"><span>Total due</span><strong id="opsTotalDue">'+amt(a.total)+'</strong></div></div>'+
+     open('Checkout · Cash or Sandbox card',
+       '<p class="opsWarning"><strong>Taxes are not calculated.</strong> Required Gratuity applies to card payments only; cash payments never include it. The separate Service charge, if enabled, applies to both.</p>'+
+       '<div class="checkoutSummary"><div><span>Items</span><strong>'+amt(cash.sub)+'</strong></div>'+
+       cash.charges.map(c=>'<div><span>'+e(c.label)+' (required, cash & card)</span><strong>'+amt(c.amountCents)+'</strong></div>').join('')+
+       (card.mandatoryGratuityCents>0?
+         '<div class="cardGratuitySummary"><span>Gratuity (required, card only)</span><strong>'+amt(card.mandatoryGratuityCents)+'</strong></div>':'')+
+       '<div><span>Optional tip</span><strong id="opsTipAmount">'+amt(0)+'</strong></div>'+
+       '<div class="checkoutGrand"><span>Cash total</span><strong id="opsTotalDue">'+amt(cash.total)+'</strong></div>'+
+       '<div class="checkoutGrand cardTotalRow"><span>Card total</span><strong id="opsCardTotal">'+amt(card.total)+'</strong></div></div>'+
        '<h3 class="opsMiniHeading">Optional additional tip</h3>'+
-       (a.mandatoryGratuityCents>0?'<p class="fine">Required automatic gratuity is already included above. You may select No tip for the optional additional tip.</p>':'')+
+       (card.mandatoryGratuityCents>0?
+         '<p class="fine">Gratuity is already included in the card total. No additional voluntary tip is required.</p>':'')+
        '<div class="tipChoices" id="opsTipChoices">'+tipButtons+'</div>'+
        '<label class="field">Or custom tip ($)<input id="opsCustomTip" type="text" inputmode="decimal" placeholder="0.00"></label>'+
-       '<div class="opsDivider"></div><h3 class="opsMiniHeading">Cash received — quick amounts</h3>'+
+       '<div class="opsDivider"></div><h3 class="opsMiniHeading">Cash received — automatic quick amounts</h3>'+
        '<div id="opsQuickCash" class="opsQuickCash"></div>'+
-       '<label class="field">Cash given ($)<input id="opsCashGiven" type="text" inputmode="decimal" value="'+(a.total/100).toFixed(2)+'"></label>'+
+       '<label class="field">Cash given ($)<input id="opsCashGiven" type="text" inputmode="decimal" value="'+(cash.total/100).toFixed(2)+'"></label>'+
        '<p class="opsChange">Change due: <strong id="opsCashChange">$0.00</strong></p>'+
-       '<p class="fine">A cash session must be open to record local cash sales. Sandbox card payments are simulated tests only.</p>',[
+       '<p class="fine">Cash sales save locally and need an open cash session. Square Sandbox card payments are tests only. A card-only mandatory charge can be subject to card surcharge restrictions even if called Gratuity.</p>',[
        {label:'Cancel',click:close},
        {label:'Record cash (local)',click:()=>{
-         const value=formNum('opsCashGiven');
-         const total=a.total+selectedTip;
-         if(value===null||Number.isNaN(value)||value<total){toast('Enter cash received at least equal to total due.');return;}
-         if(!model.currentCash(state)){toast('Open a cash session under More → Cash Management first.');return;}
-         cashPayment(a.sub,selectedTip,value);
+         const value=formNum('opsCashGiven'),total=cash.total+selectedTip;
+         if(value===null||Number.isNaN(value)||value<total){
+           toast('Cash received must cover the cash total.');return;
+         }
+         if(!model.currentCash(state)){
+           toast('Open a cash session in More → Cash management first.');return;
+         }
+         cashPayment(cash.sub,selectedTip,value);
        }},
        {label:'Square Sandbox card',kind:'primary',click:()=>{
          if(!root.LaurieSquare?.takePayment||ui.squareState()!=='authorized-sandbox'){
            toast('Connect Square Sandbox before test card checkout.');return;
          }
-         const note=state.cart.map(x=>x.qty+'× '+x.name+(x.variant?' / '+x.variant:'')).join('; ')
-           +(a.charges.length?' | Required charges: '+a.charges.map(c=>c.label+' '+amt(c.amountCents)).join(', '):'')
-           +' | Tax '+amt(a.tax)+(state.saleNote?' | '+state.saleNote:'');
-         state.pendingSquare={saleId:state.saleId,baseCents:a.baseTotalCents,
+         const note=state.cart.map(x=>x.qty+'× '+x.name+(x.variant?' / '+x.variant:'')).join('; ')+
+           (card.charges.length?' | Charges: '+card.charges.map(c=>c.label+' '+amt(c.amountCents)).join(', '):'')+
+           (state.saleNote?' | '+state.saleNote:'');
+         state.pendingSquare={saleId:state.saleId,baseCents:card.baseTotalCents,
            tipCents:selectedTip,startedAt:Date.now()};
          save();close();
-         // SDK payment amount excludes tip; Square receives it as a separate tipMoney value.
-         root.LaurieSquare.takePayment(a.total,state.saleId,note.slice(0,450),selectedTip);
+         // Only voluntary tip is sent as tipMoney; mandatory Gratuity belongs in base amount.
+         root.LaurieSquare.takePayment(card.total,state.saleId,note.slice(0,450),selectedTip);
        }}
      ]);
      const updateTotals=()=>{
-       const total=a.total+selectedTip;
-       $('opsTipAmount').textContent=amt(selectedTip);$('opsTotalDue').textContent=amt(total);
-       const choices=model.quickCashAmounts(total);
-       $('opsQuickCash').innerHTML=choices.map(v=>'<button class="secondary" type="button" data-cash-value="'+v+'">'+
-         (v===total?'Exact '+amt(v):amt(v))+'</button>').join('');
-       tendered=total;$('opsCashGiven').value=(total/100).toFixed(2);
+       const cashDue=cash.total+selectedTip,cardDue=card.total+selectedTip;
+       $('opsTipAmount').textContent=amt(selectedTip);
+       $('opsTotalDue').textContent=amt(cashDue);
+       $('opsCardTotal').textContent=amt(cardDue);
+       const choices=model.quickCashAmounts(cashDue);
+       $('opsQuickCash').innerHTML=choices.map(value=>
+         '<button class="secondary" type="button" data-cash-value="'+value+'">'+
+         (value===cashDue?'Exact '+amt(value):amt(value))+'</button>').join('');
+       $('opsCashGiven').value=(cashDue/100).toFixed(2);
        $('opsCashChange').textContent=amt(0);
      };
      $('dialogBody').querySelectorAll('[data-tip-percent]').forEach(btn=>btn.onclick=()=>{
-       const value=Number(btn.dataset.tipPercent);
-       selectedTip=model.tipAmount(a.sub,'percentage',value);
+       selectedTip=model.tipAmount(cash.sub,'percentage',Number(btn.dataset.tipPercent));
        $('opsCustomTip').value='';
        $('dialogBody').querySelectorAll('[data-tip-percent]').forEach(x=>x.classList.toggle('active',x===btn));
        updateTotals();
@@ -257,19 +270,20 @@
        const value=formNum('opsCustomTip');
        if(value===null)selectedTip=0;
        else if(Number.isNaN(value)||value>1000000)return;
-       else selectedTip=model.tipAmount(a.sub,'fixed',value);
+       else selectedTip=model.tipAmount(cash.sub,'fixed',value);
        $('dialogBody').querySelectorAll('[data-tip-percent]').forEach(x=>x.classList.remove('active'));
        updateTotals();
      };
-     $('opsQuickCash').onclick=ev=>{
-       const b=ev.target.closest('[data-cash-value]');if(!b)return;
-       tendered=Number(b.dataset.cashValue);$('opsCashGiven').value=(tendered/100).toFixed(2);
-       $('opsCashChange').textContent=amt(tendered-(a.total+selectedTip));
+     $('opsQuickCash').onclick=event=>{
+       const button=event.target.closest('[data-cash-value]');if(!button)return;
+       const tendered=Number(button.dataset.cashValue);
+       $('opsCashGiven').value=(tendered/100).toFixed(2);
+       $('opsCashChange').textContent=amt(tendered-(cash.total+selectedTip));
      };
      $('opsCashGiven').oninput=()=>{
-       const n=formNum('opsCashGiven');
-       $('opsCashChange').textContent=n!==null&&!Number.isNaN(n)&&n>=a.total+selectedTip?
-         amt(n-(a.total+selectedTip)):'—';
+       const tendered=formNum('opsCashGiven');
+       $('opsCashChange').textContent=tendered!==null&&!Number.isNaN(tendered)&&tendered>=cash.total+selectedTip?
+         amt(tendered-(cash.total+selectedTip)):'—';
      };
      updateTotals();
    }
