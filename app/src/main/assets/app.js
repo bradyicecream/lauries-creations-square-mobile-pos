@@ -36,15 +36,40 @@
   operationsApi.normalize(state); // Device-local operations data.
   const chargesApi=window.LaurieCheckoutCharges;
   chargesApi.normalize(state); // Off by default on older installs.
+  const preferencesApi=window.LaurieSettingsCatalog;
+  preferencesApi.normalize(state); // Register preferences persist with backup.
   const $=id=>document.getElementById(id);
   const format=cents=>cents===null||!Number.isSafeInteger(cents)?'PRICE NEEDED':(cents/100).toLocaleString('en-US',{style:'currency',currency:'USD'});
   const e=value=>String(value??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
   const moneyIn=val=>{const s=String(val??'').trim();if(s==='')return null;if(!/^\d+(?:\.\d{1,2})?$/.test(s))return NaN;const n=Math.round(Number(s)*100);return Number.isSafeInteger(n)&&n<=100000000?n:NaN;};
   function save(){localStorage.setItem(KEY,JSON.stringify(state));}
   let operationsUI;
+  let settingsUI;
   function initOperationsUI(){
     operationsUI=window.LaurieOperationsUI.init(state,{
       escape:e,format,$,save,render,openModal,closeModal,toast,moneyIn,amounts,squareState
+    });
+  }
+  function initSettingsUI(){
+    settingsUI=window.LaurieSettingsUI.init(()=>state,{
+      $,escape:e,openModal,closeModal,save,render,toast,
+      actions:{
+        favorites:openManageFavoritesTabs,
+        products:manage,
+        modifiers:openModifierGroupsManager,
+        flavors:flavorsEditor,
+        charges:openChargeSettings,
+        inventory:()=>operationsUI.inventory(),
+        cash:()=>operationsUI.cashDrawer(),
+        loyalty:()=>operationsUI.loyalty(),
+        staff:()=>operationsUI.staff(),
+        display:()=>operationsUI.displayPreview(),
+        activity:()=>showSection('activity'),
+        paymentLinks:()=>operationsUI.connectionInfo('links'),
+        banking:()=>operationsUI.connectionInfo('banking'),
+        reader:()=>$('readerSettings').click(),
+        backup:manage
+      }
     });
   }
   function toast(msg){const t=$('toast');t.textContent=msg;t.style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.style.display='none',3800);}
@@ -70,7 +95,7 @@
     if(tile.type==='item'&&!p)return '';
     const title=tile.type==='item'?p.name:tile.type==='category'?tile.category:'Custom amount';
     const stock=p?operationsApi.inventoryRecord(state,p.id):null;
-    const stockText=stock?.enabled?(stock.quantity>0?stock.quantity+' in stock':'Out of stock'):'';
+    const stockText=preferencesApi.normalize(state).showStockOnTiles&&stock?.enabled?(stock.quantity>0?stock.quantity+' in stock':'Out of stock'):'';
     const bottom=tile.type==='item'
       ?(p.price===null?'PRICE NEEDED':format(p.price))+(stockText?' · '+stockText:'')
       :tile.type==='category'?'Category · Browse items':'Enter an amount';
@@ -131,7 +156,7 @@
         const title=tile.type==='item'?p?.name:tile.type==='category'?tile.category:'Custom amount';
         return !q||[title,p?.category].filter(Boolean).join(' ').toLowerCase().includes(q);
       });
-      const placeholders=q&&!gridEditMode?0:Math.max(0,Math.min((window.innerWidth<500?6:20)-matching.length,window.innerWidth<500?2:12));
+      const placeholders=q&&!gridEditMode?0:(!gridEditMode&&!preferencesApi.normalize(state).showEmptyGridSlots?0:Math.max(0,Math.min((window.innerWidth<500?6:20)-matching.length,window.innerWidth<500?2:12)));
       $('productGrid').classList.remove('libraryListView');
       $('productGrid').classList.add('squareTileGrid');
       $('productGrid').setAttribute('aria-label',currentGroup.name+' tile grid');
@@ -210,6 +235,8 @@
     save();
   }
   function render(){
+    const pref=preferencesApi.normalize(state);
+    document.body.classList.toggle('registerExpandedTiles',!pref.compactFavoritesGrid);
     catalog();renderCart();syncSquareStatus();
     if(operationsUI){
       $('opsActivityList').innerHTML=operationsUI.recentActivity();
@@ -222,7 +249,7 @@
     if(state.pendingSquare){toast('Wait for the Sandbox payment result.');return;}
     if(state.paidSaleId===state.saleId){toast('Clear the completed sale to begin another.');return;}
     const p=productById(productId);if(!p)return;
-    if(!cartApi.canQuickAdd(p,modifiersApi.forProduct(state,p).length)){
+    if(!preferencesApi.normalize(state).quickAddSimpleItems||!cartApi.canQuickAdd(p,modifiersApi.forProduct(state,p).length)){
       addOrEditItem(productId);return;
     }
     const qtyInCart=state.cart.filter(x=>x.productId===p.id).reduce((sum,x)=>sum+x.qty,0);
@@ -478,7 +505,7 @@
       {label:'Done',kind:'primary',click:closeModal}
 ]);
   }
-  $('importFile').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{const src=JSON.parse(await file.text());if(!Array.isArray(src.products)||!Array.isArray(src.flavors)||!Array.isArray(src.cart))throw Error('Invalid backup');if(!confirm('Replace your current register settings and cart with this backup?'))return;state=src;groupsApi.normalize(state);gridApi.normalize(state);modifiersApi.normalize(state);operationsApi.normalize(state);chargesApi.normalize(state);state.taxPercent=0;initOperationsUI();state.saleId=makeId();state.paidSaleId=null;state.pendingSquare=null;save();closeModal();render();toast('Backup restored — verify prices');}catch(_){toast('Could not import this backup');}finally{ev.target.value='';}});
+  $('importFile').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{const src=JSON.parse(await file.text());if(!Array.isArray(src.products)||!Array.isArray(src.flavors)||!Array.isArray(src.cart))throw Error('Invalid backup');if(!confirm('Replace your current register settings and cart with this backup?'))return;state=src;groupsApi.normalize(state);gridApi.normalize(state);modifiersApi.normalize(state);operationsApi.normalize(state);chargesApi.normalize(state);preferencesApi.normalize(state);state.taxPercent=0;initOperationsUI();state.saleId=makeId();state.paidSaleId=null;state.pendingSquare=null;save();closeModal();render();toast('Backup restored — verify prices');}catch(_){toast('Could not import this backup');}finally{ev.target.value='';}});
   function squareState(){try{return window.LaurieSquare?.squareState?.()||'browser-preview';}catch(_){return 'unavailable';}}
   function syncSquareStatus(){const v=squareState(),text={'not-configured':'Add Sandbox app ID','unauthorized-sandbox':'Sandbox not connected','authorized-sandbox':'Sandbox connected','browser-preview':'Browser preview only','unavailable':'Square unavailable'};$('sqStatus').textContent=text[v]||v;}
   window.receiveSquareEvent=function(payload){let msg;try{msg=JSON.parse(payload);}catch(_){return;}
@@ -539,10 +566,10 @@
     if(item.productId==='manual')editCustomItem(index);else addOrEditItem(item.productId,index);
   });
   $('dialogBody').addEventListener('click',ev=>{const b=ev.target.closest('[data-manage-product]');if(b)editProduct(b.dataset.manageProduct);});
-  $('newProduct').onclick=()=>editProduct();$('settingsButton').onclick=manage;
+  $('newProduct').onclick=()=>editProduct();$('settingsButton').onclick=()=>settingsUI.hub();
   $('clearCart').onclick=()=>{
     if(state.pendingSquare){toast('Wait for the Square Sandbox payment result before clearing.');return;}
-    if((state.cart.length||state.saleNote)&&!confirm('Clear this sale and its note? Check payment status in Square first if you attempted checkout.'))return;
+    if(preferencesApi.normalize(state).confirmClearSale&&(state.cart.length||state.saleNote)&&!confirm('Clear this sale and its note? Check payment status in Square first if you attempted checkout.'))return;
     state.cart=[];state.saleNote='';state.saleId=makeId();state.paidSaleId=null;state.pendingSquare=null;operationsApi.normalize(state).selectedCustomerId=null;render();
   };
   $('saleNoteButton').onclick=()=>{
@@ -904,6 +931,8 @@
     const b=ev.target.closest('[data-nav]');if(b)showSection(b.dataset.nav);
   });
   $('manageFromMore').onclick=manage;
+  $('settingsAndAddons').onclick=()=>settingsUI.hub();
+  $('registerPrefsFromMore').onclick=()=>settingsUI.preferences();
   $('flavorsFromMore').onclick=flavorsEditor;
   $('newFromMore').onclick=()=>editProduct();
   $('chargesFromMore').onclick=openChargeSettings;
@@ -992,6 +1021,7 @@
     amountDigits='';save();render();toast('Custom amount added to sale');
   };
     initOperationsUI();
+    initSettingsUI();
     $('staffTool').onclick=()=>operationsUI.staff();
     $('inventoryTool').onclick=()=>operationsUI.inventory();
     $('cashTool').onclick=()=>operationsUI.cashDrawer();
