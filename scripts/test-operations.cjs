@@ -1,4 +1,5 @@
 const assert=require('node:assert/strict');
+require('../app/src/main/assets/checkout-charges.js');
 const ops=require('../app/src/main/assets/operations-model.js');
 const makeState=()=>({products:[{id:'a',name:'Bracelet',category:'Beads'},{id:'b',name:'Ice cream',category:'Ice Cream'}],
   cart:[{productId:'a',name:'Bracelet',price:750,qty:2,needsReview:false,extras:[],flavors:[]}],
