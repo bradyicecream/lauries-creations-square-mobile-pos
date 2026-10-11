@@ -187,6 +187,7 @@
        '\n\nOpen Cash management to review your cash session.');
    }
    function checkout(){
+     if(state.pendingSquare){toast('Wait for the Square Sandbox payment result.');return;}
      const a=ui.amounts(),o=ops();
      if(!state.cart.length||a.incomplete||a.total<=0||state.paidSaleId===state.saleId){toast('Review cart and prices first.');return;}
      const stock=state.cart.filter(x=>x.productId!=='manual').reduce((m,x)=>{
