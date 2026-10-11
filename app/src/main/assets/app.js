@@ -606,6 +606,119 @@
       }}
     ]);
   }
+  function openCategoryGrid(categoryName){
+    const products=state.products.filter(p=>p.category===categoryName);
+    openModal(categoryName,
+      '<p class="favoriteManagerHelp">Choose an item from this category. Item variations and modifiers will open as usual.</p>'+
+      '<div class="squareCategoryPicker">'+products.map(p=>
+        `<button type="button" class="squareChoiceRow" data-category-product="${e(p.id)}">
+          <span class="squareCategoryIcon">${e(p.icon||'▦')}</span>
+          <span><strong>${e(p.name)}</strong><small>${e(p.category||'Item')}</small></span>
+          <b>${format(p.price)}</b>
+        </button>`).join('')+'</div>',[{label:'Close',click:closeModal}]);
+  }
+  function addGridCustomAmount(){
+    if(state.pendingSquare){toast('Wait for Square to finish the test payment.');return;}
+    if(state.paidSaleId===state.saleId){toast('Clear the completed sale to begin a new sale.');return;}
+    openModal('Custom amount',
+      '<label class="field">Amount ($)<input id="squareGridAmount" type="text" inputmode="decimal" placeholder="0.00"></label>'+
+      '<p class="fine">Add an amount directly to the current sale without showing the Keypad tab.</p>',[
+      {label:'Cancel',click:closeModal},
+      {label:'Add to sale',kind:'primary',click:()=>{
+        const cents=moneyIn($('squareGridAmount').value);
+        if(!Number.isSafeInteger(cents)||cents<=0||cents>1000000){
+          toast('Enter an amount from $0.01 to $10,000.00');return;
+        }
+        state.cart.push({key:makeId(),productId:'manual',name:'Custom amount',
+          variant:'',flavors:[],extras:[],price:cents,qty:1});
+        save();closeModal();render();toast('Custom amount added');
+      }}
+    ]);
+  }
+  function openGridTilePicker(){
+    const group=groupsApi.active(state),onPage=new Set(gridApi.tiles(state,group.id)
+      .filter(x=>x.type==='item').map(x=>x.productId));
+    const available=state.products.filter(p=>!onPage.has(p.id)).slice()
+      .sort((a,b)=>a.name.localeCompare(b.name));
+    const categories=[...new Set(state.products.map(p=>p.category).filter(Boolean))].sort();
+    const content='<p class="favoriteManagerHelp">Add an item, a category shortcut, or a Custom Amount button. Square-style grid shortcuts are saved on this device only.</p>'+
+      '<label class="field">Find an item<input type="search" id="gridTileSearch" placeholder="Search items"></label>'+
+      '<div class="squarePickerList" id="gridTileItemList">'+available.map(p=>
+        `<button type="button" class="squareChoiceRow" data-pick-grid-item="${e(p.id)}">
+          <span class="squareCategoryIcon">${e(p.icon||'▦')}</span>
+          <span><strong>${e(p.name)}</strong><small>${e(p.category||'Item')}</small></span>
+          <b>${format(p.price)}</b>
+        </button>`).join('')+'</div>'+
+      '<h3 class="opsMiniHeading">Category shortcuts</h3>'+
+      '<div class="squareShortcutPills">'+categories.map(cat=>
+        `<button type="button" class="secondary" data-pick-grid-category="${e(cat)}">${e(cat)}</button>`).join('')+'</div>'+
+      '<h3 class="opsMiniHeading">Custom shortcut</h3>'+
+      '<button type="button" class="squareChoiceRow" data-pick-grid-amount="true">＋ Custom amount <span>›</span></button>';
+    openModal('Add a grid tile',content,[{label:'Cancel',click:closeModal}]);
+    $('gridTileSearch').oninput=ev=>{
+      const query=ev.target.value.trim().toLowerCase();
+      for(const btn of $('gridTileItemList').querySelectorAll('.squareChoiceRow'))
+        btn.hidden=Boolean(query)&&!btn.textContent.toLowerCase().includes(query);
+    };
+  }
+  function openGridTileEditor(tileId){
+    const group=groupsApi.active(state),page=gridApi.tiles(state,group.id);
+    const tile=page.find(t=>t.id===tileId);
+    if(!tile)return;
+    const product=tile.type==='item'?state.products.find(p=>p.id===tile.productId):null;
+    const title=tile.type==='item'?product?.name:tile.type==='category'?tile.category:'Custom amount';
+    const palette=gridApi.COLORS.map(color=>
+      `<button type="button" class="gridPaletteColor swatch-${e(color)} ${tile.color===color?'selected':''}"
+        data-grid-color="${e(color)}" data-grid-tile-id="${e(tile.id)}"
+        aria-label="Use ${e(color)} tile color" title="${e(color)}"></button>`).join('');
+    const index=page.findIndex(t=>t.id===tileId);
+    openModal('Edit tile · '+title,
+      '<p class="favoriteManagerHelp">Change the tile color or move this shortcut in the grid. Removing a tile never deletes the actual item from your Library.</p>'+
+      '<h3 class="opsMiniHeading">Tile color</h3><div class="gridPalette">'+palette+'</div>'+
+      '<h3 class="opsMiniHeading">Position</h3>'+
+      `<div class="gridEditMoves"><button type="button" class="secondary" data-grid-move="-1" data-grid-tile-id="${e(tile.id)}" ${index===0?'disabled':''}>← Move left</button>
+        <button type="button" class="secondary" data-grid-move="1" data-grid-tile-id="${e(tile.id)}" ${index===page.length-1?'disabled':''}>Move right →</button></div>`,[
+        {label:'Remove from grid',click:()=>{
+          if(!gridApi.removeTile(state,group.id,tile.id))return;
+          save();closeModal();catalog();toast('Tile removed from Favorites');
+        }},
+        {label:'Done',kind:'primary',click:closeModal}
+      ]);
+  }
+  function handleGridManagerClick(button){
+    const group=groupsApi.active(state),id=group.id;
+    if(button.hasAttribute('data-pick-grid-item')){
+      const result=gridApi.addTile(state,id,{type:'item',productId:button.dataset.pickGridItem,
+        color:gridApi.defaultColor(state.products.find(x=>x.id===button.dataset.pickGridItem)?.category)});
+      if(!result.ok){toast(result.error);return;}
+      save();closeModal();catalog();toast('Item tile added');return;
+    }
+    if(button.hasAttribute('data-pick-grid-category')){
+      const result=gridApi.addTile(state,id,{type:'category',category:button.dataset.pickGridCategory,
+        color:gridApi.defaultColor(button.dataset.pickGridCategory)});
+      if(!result.ok){toast(result.error);return;}
+      save();closeModal();catalog();toast('Category shortcut added');return;
+    }
+    if(button.hasAttribute('data-pick-grid-amount')){
+      const result=gridApi.addTile(state,id,{type:'custom-amount',color:'slate'});
+      if(!result.ok){toast(result.error);return;}
+      save();closeModal();catalog();toast('Custom amount shortcut added');return;
+    }
+    if(button.hasAttribute('data-grid-color')){
+      if(gridApi.setColor(state,id,button.dataset.gridTileId,button.dataset.gridColor)){
+        save();catalog();openGridTileEditor(button.dataset.gridTileId);
+      }return;
+    }
+    if(button.hasAttribute('data-grid-move')){
+      if(gridApi.moveTile(state,id,button.dataset.gridTileId,Number(button.dataset.gridMove))){
+        save();catalog();openGridTileEditor(button.dataset.gridTileId);
+      }return;
+    }
+    if(button.hasAttribute('data-category-product')){
+      const productId=button.dataset.categoryProduct;
+      closeModal();addFromGrid(productId);
+    }
+  }
   function openCreateFavoritesTab(){
     openModal('Create Favorites tab',
       '<p class="favoriteManagerHelp">Create another group of favorite item buttons. Tabs are stored on this device and can be renamed or rearranged later.</p>'+
