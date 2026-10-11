@@ -6,7 +6,7 @@
  const model=root.LaurieSettingsCatalog;
  const labels={local:'On this device',preview:'Local preview',square:'Square connection required',
    hardware:'Additional hardware required',subscription:'Square subscription/service'};
- function init(state,ctx){
+ function init(getState,ctx){
    const {$,escape:e,openModal,closeModal,save,render,toast,actions}=ctx;
    function status(type){return labels[type]||'Unavailable';}
    function card(x){
@@ -61,7 +61,7 @@
        ]);
    }
    function preferences(){
-     const pref=model.normalize(state);
+     const state=getState(),pref=model.normalize(state);
      const checks=[
        ['quickAddSimpleItems','One-tap simple items','Immediately add a priced item that has no variations or modifiers.'],
        ['showStockOnTiles','Stock count on item tiles','Show remaining locally tracked quantity on item and Favorites tiles.'],
