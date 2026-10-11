@@ -100,16 +100,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          tag="v1.1.0-sandbox"
-          asset="Lauries-Creations-POS-v1.1.0-Sandbox.apk"
+          tag="v1.2.0-sandbox"
+          asset="Lauries-Creations-POS-v1.2.0-Sandbox.apk"
           cp app/build/outputs/apk/debug/app-debug.apk "/tmp/$asset"
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "Release $tag already exists; preserving the existing downloadable APK."
           else
             gh release create "$tag" "/tmp/$asset" \
               --target "$GITHUB_SHA" \
-              --title "Laurie's Creations POS v1.1 — Sandbox Test" \
-              --notes "SANDBOX TEST VERSION — not for real payments. Includes Square-inspired Favorites, Keypad, Item Library, editable cart and modifiers, and Square Mobile Payments SDK Sandbox mock-reader testing. Android 9 or newer required. This is a debug-signed APK; installation over older builds may fail if their signatures differ. Back up locally edited products and flavors before uninstalling." \
+              --title "Laurie's Creations POS v1.2 — Saved Catalog Sandbox" \
+              --notes "SANDBOX TEST VERSION — not for real payments. Includes 29 items and 102 known modifier options from the saved register snapshot, a Square-inspired Favorites/Keypad/Library layout, editable cart, and Square Sandbox test payments. The saved catalog is not live Square synchronization; review prices before testing. Android 9 or newer required. This is a debug-signed APK; installation over older builds may fail if their signatures differ. Back up locally edited products and flavors before uninstalling." \
               --prerelease
           fi
           echo "Download release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
