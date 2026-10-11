@@ -66,12 +66,14 @@
       <div class="cartFooter">
         <div class="totals">
           <div><span>Subtotal</span><b id="subtotal">$0.00</b></div>
-          <div id="automaticGratuityLine" hidden><span id="automaticGratuityLabel">Automatic gratuity</span><b id="automaticGratuityAmount">$0.00</b></div>
           <div id="serviceChargeLine" hidden><span id="serviceChargeLabel">Service charge</span><b id="serviceChargeAmount">$0.00</b></div>
-          <div><span>Tax <span id="taxCaption">(0%)</span></span><b id="tax">$0.00</b></div>
-          <div class="grand"><span>Total</span><strong id="total">$0.00</strong></div>
+          <div class="grand"><span id="cashTotalLabel">Total</span><strong id="total">$0.00</strong></div>
+          <div id="cardGratuityPreview" class="cardOnlyPreview" hidden>
+            <div><span>Gratuity (card only)</span><b id="automaticGratuityAmount">$0.00</b></div>
+            <div><span>Card total</span><b id="cardTotalAmount">$0.00</b></div>
+          </div>
         </div>
-        <p id="checkoutNotice" class="notice">Verify manually entered tax and prices before taking a test payment.</p>
+        <p id="checkoutNotice" class="notice">Verify item prices and payment-method totals before taking a test payment.</p>
         <button id="checkout" type="button" class="primary full">Charge $0.00 · TEST</button>
         <p class="fine paymentFine"><span aria-hidden="true">◈</span> Choose tips and quick cash amounts at checkout. Card payments use Square Sandbox only; cash sales are local.</p>
       </div>
@@ -82,7 +84,7 @@
   </section>
   <section class="utilityPane" id="morePanel" hidden aria-label="More options">
     <h2>More</h2>
-    <div class="utilityCard"><h3>Register</h3><button id="manageFromMore" type="button" class="utilityRow">⚙ &nbsp; Products, modifiers &amp; tax <span>›</span></button><button id="flavorsFromMore" type="button" class="utilityRow">🍦 &nbsp; Ice cream flavors <span>›</span></button><button id="modifierGroupsFromMore" type="button" class="utilityRow">🧩 &nbsp; Modifier groups — all categories <span>›</span></button><button id="chargesFromMore" type="button" class="utilityRow">％ &nbsp; Automatic gratuity &amp; service charges <span>›</span></button><button id="newFromMore" type="button" class="utilityRow">＋ &nbsp; Create item <span>›</span></button><button id="favoriteGroupsFromMore" type="button" class="utilityRow">★ &nbsp; Edit Favorites tabs and groups <span>›</span></button><button id="restoreCatalog" type="button" class="utilityRow">↻ &nbsp; Restore saved item library <span>›</span></button><p class="fine">Restore items from the previous Laurie’s Creations register snapshot. This is not live Square synchronization.</p></div>
+    <div class="utilityCard"><h3>Register</h3><button id="manageFromMore" type="button" class="utilityRow">⚙ &nbsp; Products &amp; modifiers <span>›</span></button><button id="flavorsFromMore" type="button" class="utilityRow">🍦 &nbsp; Ice cream flavors <span>›</span></button><button id="modifierGroupsFromMore" type="button" class="utilityRow">🧩 &nbsp; Modifier groups — all categories <span>›</span></button><button id="chargesFromMore" type="button" class="utilityRow">％ &nbsp; Gratuity &amp; service charge <span>›</span></button><button id="newFromMore" type="button" class="utilityRow">＋ &nbsp; Create item <span>›</span></button><button id="favoriteGroupsFromMore" type="button" class="utilityRow">★ &nbsp; Edit Favorites tabs and groups <span>›</span></button><button id="restoreCatalog" type="button" class="utilityRow">↻ &nbsp; Restore saved item library <span>›</span></button><p class="fine">Restore items from the previous Laurie’s Creations register snapshot. This is not live Square synchronization.</p></div>
     <div class="utilityCard"><h3>Business tools</h3><p class="fine">Device-local management tools for testing. Export a register backup from Products, modifiers &amp; tax before reinstalling.</p>
       <button id="staffTool" type="button" class="utilityRow">👥 &nbsp; Staff &amp; time cards <span>›</span></button>
       <button id="inventoryTool" type="button" class="utilityRow">📦 &nbsp; Inventory tracking <span>›</span></button>
