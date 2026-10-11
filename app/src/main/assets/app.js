@@ -32,6 +32,8 @@
   modifiersApi.normalize(state); // Preserves and migrates saved per-product modifier groups.
   const operationsApi=window.LaurieOperations;
   operationsApi.normalize(state); // Device-local operations data.
+  const chargesApi=window.LaurieCheckoutCharges;
+  chargesApi.normalize(state); // Off by default on older installs.
   const $=id=>document.getElementById(id);
   const format=cents=>cents===null||!Number.isSafeInteger(cents)?'PRICE NEEDED':(cents/100).toLocaleString('en-US',{style:'currency',currency:'USD'});
   const e=value=>String(value??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
@@ -119,7 +121,7 @@
     $('addCustomAmount').disabled=!Number(amountDigits||0)||Number(amountDigits)>1000000;
   }
   function lineTotal(item){if(item.price===null||!Number.isSafeInteger(item.price))return null;return item.price*(item.qty||1);}
-  function amounts(){const incomplete=state.cart.some(x=>lineTotal(x)===null||x.needsReview===true);const sub=state.cart.reduce((sum,x)=>sum+(lineTotal(x)||0),0);const percent=Number(state.taxPercent)||0;const tax=Math.round(sub*percent/100);return {sub,tax,total:sub+tax,incomplete};}
+  function amounts(){return chargesApi.calculate(state);}
   function renderCart(){
     const a=amounts();
     $('cartList').innerHTML=state.cart.length?state.cart.map((x,i)=>`<div class="cartitem">
@@ -138,10 +140,20 @@
     $('tax').textContent=format(a.tax);
     $('total').textContent=format(a.total);
     $('taxCaption').textContent=`(${Number(state.taxPercent)||0}%)`;
+    for(const [key,lineId,labelId,amountId] of [
+      ['gratuity','automaticGratuityLine','automaticGratuityLabel','automaticGratuityAmount'],
+      ['service','serviceChargeLine','serviceChargeLabel','serviceChargeAmount']]){
+      const charge=a.charges.find(c=>c.key===key);
+      $(lineId).hidden=!charge;
+      if(charge){$(labelId).textContent=charge.label+' (required)';$(amountId).textContent=format(charge.amountCents);}
+    }
     const paid=state.paidSaleId===state.saleId;
     $('checkout').disabled=!state.cart.length||a.incomplete||paid||a.total<=0;
     $('checkout').textContent=paid?'Test sale completed':a.incomplete?'Review item prices':'Charge '+format(a.total)+' · TEST';
-    $('checkoutNotice').textContent=paid?'Sandbox payment reported success; do not charge this sale again.':a.incomplete?'One or more items came from an older snapshot and require price verification. Edit the product under More → Products.':'Tax is set manually. Verify tax, modifiers, total, and Square location before checkout.';
+    $('checkoutNotice').textContent=paid?'Test sale completed; do not charge the same sale again.':
+      a.incomplete?'One or more item prices or charge settings require review. Edit them in More.':
+      a.charges.length?'Required charges are included in this total. Review tax treatment, amounts and Square location before checkout.':
+      'Tax is set manually. Verify tax, modifiers, total, and Square location before checkout.';
     $('cartItemCount').textContent=state.cart.reduce((n,x)=>n+(x.qty||1),0)+' items';
     const note=typeof state.saleNote==='string'?state.saleNote:'';
     $('saleNoteLabel').textContent=note?'Edit sale note':'Add sale note';
@@ -354,17 +366,69 @@
       const result=[];const editor=$('flavorEditor');const names=[...editor.querySelectorAll('[data-flavor-name]')];for(const input of names){const i=Number(input.dataset.flavorName),name=input.value.trim(),price=moneyIn(editor.querySelector(`[data-flavor-price="${i}"]`).value);if(!name)continue;if(price===null||Number.isNaN(price)){toast('Check flavor prices');return;}const active=editor.querySelector(`[data-flavor-active="${i}"]`).checked;result.push({id:state.flavors[i]?.id||makeId(),name,price,active});}state.flavors=result;save();closeModal();render();toast('Flavors saved');
     }}
   ]);$('addFlavor').onclick=()=>{const i=$('flavorEditor').querySelectorAll('[data-flavor-name]').length;$('flavorEditor').insertAdjacentHTML('beforeend',`<div class="flavorRow"><input data-flavor-name="${i}" placeholder="New flavor"><input data-flavor-price="${i}" value="0.00"><label><input data-flavor-active="${i}" type="checkbox" checked> On</label></div>`);};}
+  function openChargeSettings(){
+    if(state.paidSaleId===state.saleId){toast('Clear completed sale before editing checkout charges.');return;}
+    if(state.pendingSquare){toast('Wait for Square payment result before changing charges.');return;}
+    const settings=chargesApi.normalize(state);
+    const row=(key,title,explanation)=>{
+      const rule=settings[key];
+      const shown=rule.kind==='fixed'?(rule.value/100).toFixed(2):String(rule.value);
+      return `<div class="chargeSettingsGroup">
+        <h3>${e(title)}</h3><p class="fine">${e(explanation)}</p>
+        <label class="chargeSwitch"><input type="checkbox" data-charge-enabled="${key}" ${rule.enabled?'checked':''}><span>Apply automatically to every sale</span></label>
+        <label class="field">Name shown on receipt/checkout<input data-charge-label="${key}" maxlength="70" value="${e(rule.label)}"></label>
+        <div class="chargeSettingsControls"><label class="field">Charge type<select data-charge-kind="${key}">
+          <option value="percent" ${rule.kind==='percent'?'selected':''}>Percentage (%)</option>
+          <option value="fixed" ${rule.kind==='fixed'?'selected':''}>Fixed dollars ($)</option>
+        </select></label><label class="field">Rate or amount<input data-charge-value="${key}" inputmode="decimal" value="${e(shown)}"></label></div>
+        <label class="chargeSwitch"><input type="checkbox" data-charge-taxable="${key}" ${rule.taxable?'checked':''}><span>Include this charge in the manually calculated taxable amount</span></label>
+      </div>`;
+    };
+    openModal('Automatic gratuity & service charges',
+      '<p class="opsWarning">These are <strong>required charges</strong>, not voluntary tips. Both are off by default. They apply to the pre-tax item subtotal (not to each other) and appear separately before payment. Tax treatment depends on your jurisdiction; confirm taxable settings before enabling.</p>'+
+      row('gratuity','Automatic gratuity','A required gratuity is a mandatory service charge for federal tip reporting, even if it is distributed to staff.')+
+      row('service','Service charge','An additional mandatory service or handling charge. This amount is not a Square card surcharge.')+
+      '<p class="fine">These settings remain local to this register, do not create Square Order service-charge objects, and will affect the current sale when saved.</p>',[
+        {label:'Cancel',click:closeModal},
+        {label:'Save required charges',kind:'primary',click:()=>{
+          const next={};
+          for(const key of ['gratuity','service']){
+            const kind=$('dialogBody').querySelector('[data-charge-kind="'+key+'"]').value;
+            const raw=$('dialogBody').querySelector('[data-charge-value="'+key+'"]').value.trim();
+            const value=kind==='fixed'?moneyIn(raw):raw===''?NaN:Number(raw);
+            next[key]={
+              enabled:$('dialogBody').querySelector('[data-charge-enabled="'+key+'"]').checked,
+              label:$('dialogBody').querySelector('[data-charge-label="'+key+'"]').value,
+              kind,value,
+              taxable:$('dialogBody').querySelector('[data-charge-taxable="'+key+'"]').checked
+            };
+          }
+          const result=chargesApi.saveSettings(state,next);
+          if(!result.ok){toast(result.error);return;}
+          save();closeModal();render();toast('Required charge settings saved');
+        }}
+      ]
+    );
+    $('dialogBody').querySelectorAll('[data-charge-kind]').forEach(select=>{
+      select.onchange=()=>{
+        const field=$('dialogBody').querySelector('[data-charge-value="'+select.dataset.chargeKind+'"]');
+        field.value=select.value==='percent'?'0':'0.00';
+        field.placeholder=select.value==='percent'?'18':'2.00';
+      };
+    });
+  }
   function manage(){openModal('Manage register',`<p>Update products, prices, flavors and tax. Your changes stay on this device only.</p><p class="fine">Pricing imported from an older register is NOT automatic. Verify against the Square catalog before accepting any payment.</p><label class="field">Manual sales tax rate (%)<input id="taxRate" type="number" min="0" max="30" step="0.01" value="${e(state.taxPercent)}"></label><div class="divider"></div><div style="display:flex;gap:7px;flex-wrap:wrap" id="manageProducts">${state.products.map(p=>`<button class="mini" type="button" data-manage-product="${e(p.id)}">${e(p.name)} · ${format(p.price)}</button>`).join('')}</div>`,[
       {label:'Export backup',click:()=>{const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='lauries-register-backup.json';link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);toast('Backup exported');}},
       {label:'Import backup',click:()=>{$('importFile').click();}},
       {label:'Flavors',click:flavorsEditor},
       {label:'Modifier groups',click:openModifierGroupsManager},
+      {label:'Required charges',click:openChargeSettings},
       {label:'Restore saved library',click:restoreSavedCatalog},
       {label:'New product',click:()=>editProduct()},
       {label:'Save tax',kind:'primary',click:()=>{const rate=Number($('taxRate').value);if(!Number.isFinite(rate)||rate<0||rate>30){toast('Enter a tax rate from 0–30%');return;}state.taxPercent=rate;save();closeModal();render();toast('Tax updated');}}
     ]);
   }
-  $('importFile').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{const src=JSON.parse(await file.text());if(!Array.isArray(src.products)||!Array.isArray(src.flavors)||!Array.isArray(src.cart))throw Error('Invalid backup');if(!confirm('Replace your current register settings and cart with this backup?'))return;state=src;groupsApi.normalize(state);modifiersApi.normalize(state);operationsApi.normalize(state);initOperationsUI();state.saleId=makeId();state.paidSaleId=null;state.pendingSquare=null;save();closeModal();render();toast('Backup restored — verify prices');}catch(_){toast('Could not import this backup');}finally{ev.target.value='';}});
+  $('importFile').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{const src=JSON.parse(await file.text());if(!Array.isArray(src.products)||!Array.isArray(src.flavors)||!Array.isArray(src.cart))throw Error('Invalid backup');if(!confirm('Replace your current register settings and cart with this backup?'))return;state=src;groupsApi.normalize(state);modifiersApi.normalize(state);operationsApi.normalize(state);chargesApi.normalize(state);initOperationsUI();state.saleId=makeId();state.paidSaleId=null;state.pendingSquare=null;save();closeModal();render();toast('Backup restored — verify prices');}catch(_){toast('Could not import this backup');}finally{ev.target.value='';}});
   function squareState(){try{return window.LaurieSquare?.squareState?.()||'browser-preview';}catch(_){return 'unavailable';}}
   function syncSquareStatus(){const v=squareState(),text={'not-configured':'Add Sandbox app ID','unauthorized-sandbox':'Sandbox not connected','authorized-sandbox':'Sandbox connected','browser-preview':'Browser preview only','unavailable':'Square unavailable'};$('sqStatus').textContent=text[v]||v;}
   window.receiveSquareEvent=function(payload){let msg;try{msg=JSON.parse(payload);}catch(_){return;}
@@ -372,7 +436,7 @@
       const pending=state.pendingSquare;
       const validPending=pending&&pending.saleId===state.saleId;
       const result=validPending?
-        operationsApi.recordSale(state,'sandbox-card',pending.tipCents||0,null,msg.paymentId||''):
+        operationsApi.recordSale(state,'sandbox-card',pending.tipCents||0,null,msg.paymentId||'',pending.baseCents):
         {ok:false,error:'No matching pending checkout record.'};
       // A genuine SDK success must lock the sale even if local tracking could not be written.
       state.paidSaleId=state.saleId;state.pendingSquare=null;
@@ -647,6 +711,7 @@
   $('manageFromMore').onclick=manage;
   $('flavorsFromMore').onclick=flavorsEditor;
   $('newFromMore').onclick=()=>editProduct();
+  $('chargesFromMore').onclick=openChargeSettings;
   $('modifierGroupsFromMore').onclick=openModifierGroupsManager;
   $('dialogBody').addEventListener('click',ev=>{
     const edit=ev.target.closest('[data-mod-edit]');if(edit){openModifierGroupEditor(edit.dataset.modEdit);return;}
