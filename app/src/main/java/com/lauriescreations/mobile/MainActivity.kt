@@ -36,6 +36,7 @@ import java.util.UUID
 
 class MainActivity : Activity() {
     private lateinit var browser: WebView
+    private lateinit var customerDisplay: CustomerDisplayServer
     private var inPayment = false
     private val squareReady: Boolean get() = (application as LaurieApplication).sdkReady
 
@@ -54,6 +55,19 @@ class MainActivity : Activity() {
     }
 
     private inner class RegisterBridge {
+        @JavascriptInterface fun displayStatus(): String = customerDisplay.status()
+        @JavascriptInterface fun displayPublish(snapshot: String) { customerDisplay.publish(snapshot) }
+        @JavascriptInterface fun shareDisplayDetails() = runOnUiThread {
+            val details = JSONObject(customerDisplay.status())
+            if (!details.optBoolean("running")) return@runOnUiThread
+            val address = details.optString("address")
+            val code = details.optString("pairingCode")
+            val share = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, "Laurie’s Creations customer display\n\nOpen on the second iPad or Zebra: $address\nPairing code: $code\n\nBoth devices must use the same Wi-Fi. Display is view-only and uses no Square account credentials.")
+            }
+            startActivity(Intent.createChooser(share, "Share customer display instructions"))
+        }
         @JavascriptInterface fun squareState(): String {
             if (!squareReady) return "not-configured"
             return if (MobilePaymentsSdk.authorizationManager().authorizationState.isAuthorized) "authorized-sandbox" else "unauthorized-sandbox"
@@ -94,6 +108,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        customerDisplay = CustomerDisplayServer(assets).also { it.start() }
         browser = WebView(this)
         browser.webChromeClient = WebChromeClient()
         browser.webViewClient = object : WebViewClient() {
@@ -276,6 +291,7 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        if (::customerDisplay.isInitialized) customerDisplay.stop()
         if (::browser.isInitialized) {
             browser.removeJavascriptInterface("LaurieSquare")
             browser.destroy()

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<title>Laurie’s Creations · Your Order</title>
+<style>
+:root{color-scheme:dark;--lavender:#d9b4ff;--cream:#fff9fe;--line:#ffffff30}
+*{box-sizing:border-box}
+body{margin:0;min-height:100dvh;font:500 clamp(16px,2.7vw,24px)/1.48 system-ui,-apple-system,sans-serif;background:radial-gradient(circle at 80% 0%,#75428e 0,transparent 38%),linear-gradient(150deg,#382042,#211328);color:var(--cream)}
+main{max-width:1100px;min-height:100dvh;margin:auto;padding:clamp(22px,4vw,55px);display:flex;flex-direction:column}
+header{text-align:center;border-bottom:1px solid var(--line);padding-bottom:26px}
+.brand{font-size:clamp(31px,6vw,65px);font-weight:850;letter-spacing:-.04em;line-height:1.1}
+.brand .star{color:var(--lavender);margin-right:10px}
+.tagline{font-size:clamp(12px,2vw,18px);color:#ddbbec;margin-top:12px}
+h1{font-size:clamp(25px,3vw,35px);margin:36px 0 20px;text-align:center}
+#pair{max-width:530px;width:100%;margin:10vh auto;text-align:center;padding:28px;background:#ffffff12;border:1px solid var(--line);border-radius:22px}
+#pair p{color:#e9d7ed}
+label{display:block;text-align:left;margin:12px auto;max-width:360px;font-size:16px}
+input{display:block;margin-top:8px;width:100%;height:62px;border:2px solid #bb92c9;border-radius:12px;background:white;color:#281330;text-align:center;font:750 26px system-ui;letter-spacing:5px;text-transform:uppercase}
+button{height:58px;border:0;border-radius:12px;background:#dfb9fb;color:#281330;padding:0 32px;font:750 18px system-ui;cursor:pointer}
+#pairStatus{min-height:30px;font-size:15px;color:#ffe1b1}
+#live[hidden],#pair[hidden]{display:none}
+.status{text-align:center;color:#ddc3e1;font-size:clamp(13px,2vw,17px)}
+.good{color:#a9f0ca}
+#lines{margin:25px 0 15px;min-height:100px}
+.item,.charge,.total{display:flex;justify-content:space-between;gap:25px;align-items:flex-start}
+.item{padding:20px 4px;border-bottom:1px solid var(--line);font-size:clamp(18px,3vw,30px)}
+.item b{font-variant-numeric:tabular-nums;white-space:nowrap}
+.item small{display:block;font-size:.68em;color:#e7c9f4;margin-top:4px}
+.empty{text-align:center;color:#e9d3ed;padding:50px 15px}
+.charge{padding:12px 4px;color:#efcfee}
+.totals{margin-top:20px;padding-top:16px;border-top:2px solid #cf8fdf}
+.total{font-size:clamp(24px,4.5vw,46px);font-weight:850;padding:12px 0}
+.total.card{font-size:clamp(20px,3vw,34px);color:#e8c8fb}
+.total b{white-space:nowrap;font-variant-numeric:tabular-nums}
+#thanks{border-radius:16px;background:#ffffff14;text-align:center;padding:25px;margin:12px 0}
+footer{text-align:center;margin-top:auto;padding-top:32px;color:#d3acd9;font-size:clamp(13px,2vw,17px)}
+@media(max-width:500px){main{padding:16px}.item{padding:17px 0}.brand{font-size:30px}}
+</style>
+</head>
+<body>
+<main>
+<header><div class="brand"><span class="star">✦</span>Laurie’s Creations</div><div class="tagline">handmade with love and a little bit of sparkle</div></header>
+<section id="pair">
+<h1>Connect customer display</h1>
+<p>On the cashier's Laurie’s Creations register, open <b>More → Live customer display</b>. Enter the pairing code shown there.</p>
+<label for="pin">Display pairing code<input id="pin" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="10" inputmode="text" placeholder="10 characters"></label>
+<button id="connect" type="button">Connect display</button>
+<p id="pairStatus" role="status"></p>
+</section>
+<section id="live" hidden>
+<h1>Welcome! Your order</h1>
+<p id="status" class="status" role="status">Connecting…</p>
+<div id="thanks" hidden>Thank you for shopping with Laurie’s Creations! 💜</div>
+<div id="lines"></div>
+<div id="charges"></div>
+<div class="totals">
+<div class="total"><span id="cashTitle">Cash total</span><b id="cashTotal">$0.00</b></div>
+<div class="total card" id="cardRow" hidden><span>Card total</span><b id="cardTotal">$0.00</b></div>
+</div>
+</section>
+<footer>✦ Made with love and a little bit of sparkle ✦</footer>
+</main>
+<script>
+(()=>{
+'use strict';
+const $=id=>document.getElementById(id);
+const usd=cents=>Number.isSafeInteger(cents)&&cents>=0?(cents/100).toLocaleString('en-US',{style:'currency',currency:'USD'}):'Price pending';
+let code='',timer=null;
+function text(tag,cls,value){const el=document.createElement(tag);el.className=cls;el.textContent=String(value??'');return el}
+function line(parent,cls,left,right,detail){
+  const row=text('div',cls,'');const a=text('span','',left);if(detail)a.appendChild(text('small','',detail));
+  row.append(a,text('b','',right));parent.appendChild(row);
+}
+function render(s){
+ const lines=$('lines'),charges=$('charges');lines.replaceChildren();charges.replaceChildren();
+ const items=Array.isArray(s.items)?s.items:[];
+ if(!items.length)lines.append(text('div','empty','Items will appear here as your order is entered.'));
+ items.forEach(x=>line(lines,'item',x.qty+' × '+x.name,usd(x.lineTotalCents),x.detail));
+ (Array.isArray(s.charges)?s.charges:[]).forEach(x=>line(charges,'charge',x.label,usd(x.cents)));
+ if(s.cardGratuityCents>0)line(charges,'charge','Gratuity (card only)',usd(s.cardGratuityCents));
+ $('cashTotal').textContent=s.incomplete?'Price pending':usd(s.cashTotalCents);
+ $('cardTotal').textContent=s.incomplete?'Price pending':usd(s.cardTotalCents);
+ $('cardRow').hidden=!(s.cardGratuityCents>0);
+ $('cashTitle').textContent=s.cardGratuityCents>0?'Cash total':'Total';
+ $('thanks').hidden=!s.paid;
+}
+async function poll(){
+ try{
+  const response=await fetch('/state',{headers:{'X-Display-Code':code},cache:'no-store'});
+  if(response.status===403){
+    sessionStorage.removeItem('laurie-display-pin');$('pair').hidden=false;$('live').hidden=true;
+    $('pairStatus').textContent='Invalid code or register restarted. Check the cashier screen.';code='';return;
+  }
+  if(!response.ok)throw Error('Disconnected');
+  render(await response.json());$('status').textContent='● Live — updates automatically';$('status').className='status good';
+ }catch(_){
+  $('status').textContent='Register disconnected — waiting to reconnect…';$('status').className='status';
+ }
+ timer=setTimeout(poll,800);
+}
+function connect(value){
+ const pin=String(value??'').trim().toUpperCase();
+ if(!/^[A-HJ-NP-Z2-9]{10}$/.test(pin)){
+  $('pairStatus').textContent='Enter the 10-character code shown on the register.';return;
+ }
+ clearTimeout(timer);code=pin;sessionStorage.setItem('laurie-display-pin',pin);
+ $('pair').hidden=true;$('live').hidden=false;poll();
+}
+$('connect').addEventListener('click',()=>connect($('pin').value));
+$('pin').addEventListener('keydown',e=>{if(e.key==='Enter')connect($('pin').value)});
+const saved=sessionStorage.getItem('laurie-display-pin');
+if(saved){$('pin').value=saved;connect(saved)}
+})();
+</script>
+</body>
+</html>

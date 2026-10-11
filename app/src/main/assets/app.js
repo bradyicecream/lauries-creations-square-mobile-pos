@@ -187,6 +187,29 @@
   }
   function lineTotal(item){if(item.price===null||!Number.isSafeInteger(item.price))return null;return item.price*(item.qty||1);}
   function amounts(){return chargesApi.calculate(state);}
+  function publishCustomerDisplay(){
+    const bridge=window.LaurieSquare;
+    if(typeof bridge?.displayPublish!=='function')return; // Native APK only.
+    try{
+      const cash=chargesApi.calculate(state,'cash');
+      const card=chargesApi.calculate(state,'card');
+      const items=state.cart.map(x=>{
+        const flavors=(x.flavors||[]).map(id=>state.flavors.find(f=>f.id===id)?.name||'Flavor');
+        const detail=[x.variant||'',...flavors,...(x.extras||[]).map(t=>t.name)].filter(Boolean).join(' · ');
+        const amount=lineTotal(x);
+        return {name:x.name,qty:x.qty,detail,lineTotalCents:amount===null?-1:amount};
+      });
+      bridge.displayPublish(JSON.stringify({
+        items,
+        charges:cash.charges.map(c=>({label:c.label+' (required)',cents:c.amountCents})),
+        cashTotalCents:cash.total,
+        cardTotalCents:card.total,
+        cardGratuityCents:card.mandatoryGratuityCents,
+        incomplete:cash.incomplete||card.incomplete,
+        paid:state.paidSaleId===state.saleId
+      }));
+    }catch(_){/* Local register must remain usable even if display is unavailable. */}
+  }
   function renderCart(){
     const a=amounts();
     $('cartList').innerHTML=state.cart.length?state.cart.map((x,i)=>`<div class="cartitem">
@@ -233,6 +256,7 @@
     $('saleNotePreview').textContent=note;
     updateMobileCart();
     save();
+    publishCustomerDisplay();
   }
   function render(){
     const pref=preferencesApi.normalize(state);

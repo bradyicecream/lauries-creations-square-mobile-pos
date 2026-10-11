@@ -98,7 +98,7 @@
        entry.status==='subscription'?
        'This feature depends on an eligible Square subscription or separately activated advanced capabilities. Enabling it in this custom register would not activate the service.':
        entry.status==='preview'?
-       'A device-local preview exists, but this is not official Square synchronization.':
+       'On Android, a customer screen can connect over local Wi-Fi using a pairing code. This is not official Square synchronization.':
        'This tool is available locally on the register.';
      openModal(entry.name,
        '<p class="settingsServiceStatus type-'+e(entry.status)+'">'+e(status(entry.status))+'</p>'+
