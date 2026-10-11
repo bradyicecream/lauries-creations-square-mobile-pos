@@ -26,9 +26,12 @@
     if(!staff)return {ok:false,error:'Staff member not found.'};
     const open=o.timecards.find(x=>x.staffId===staffId&&x.end===null);
     if(open){if(now<open.start)return {ok:false,error:'End time cannot precede start time.'};
-      open.end=now;return {ok:true,type:'out',row:open};
+      open.end=now;
+      if(o.activeStaffId===staffId)o.activeStaffId=o.timecards.find(x=>x.end===null)?.staffId||null;
+      return {ok:true,type:'out',row:open};
     }
-    const row={id:id(),staffId,start:now,end:null};o.timecards.push(row);return {ok:true,type:'in',row};
+    const row={id:id(),staffId,start:now,end:null};o.timecards.push(row);o.activeStaffId=staffId;
+    return {ok:true,type:'in',row};
   }
   function inventoryRecord(s,productId){
     const o=normalize(s);return o.inventory[productId]||{enabled:false,quantity:0,lowAt:0};
