@@ -28,6 +28,7 @@
   const groupsApi=window.LaurieFavoriteGroups;
   groupsApi.normalize(state); // Migrates older single Favorites lists without deleting them.
   const modifiersApi=window.LaurieModifierGroups;
+  const cartApi=window.LaurieRegisterCart;
   modifiersApi.normalize(state); // Preserves and migrates saved per-product modifier groups.
   const $=id=>document.getElementById(id);
   const format=cents=>cents===null||!Number.isSafeInteger(cents)?'PRICE NEEDED':(cents/100).toLocaleString('en-US',{style:'currency',currency:'USD'});
@@ -147,16 +148,11 @@
   function addFromGrid(productId){
     if(state.paidSaleId===state.saleId){toast('Clear the completed sale to begin another.');return;}
     const p=productById(productId);if(!p)return;
-    const customizable=Boolean((p.variants||[]).length||(p.extras||[]).length||(p.scoops||0)
-      ||modifiersApi.forProduct(state,p).length);
-    if(customizable||p.price===null||p.reviewRequired||!Number.isSafeInteger(p.price)){
+    if(!cartApi.canQuickAdd(p,modifiersApi.forProduct(state,p).length)){
       addOrEditItem(productId);return;
     }
-    const existing=state.cart.find(x=>x.productId===p.id&&!x.variant
-      &&!(x.flavors||[]).length&&!(x.extras||[]).length&&x.price===p.price&&x.qty<99);
-    if(existing)existing.qty++;
-    else state.cart.push({key:makeId(),productId:p.id,name:p.name,variant:'',flavors:[],extras:[],
-      price:p.price,qty:1,needsReview:false});
+    const result=cartApi.addSimple(state,p,makeId);
+    if(!result.ok){toast('Clear the completed sale first.');return;}
     save();render();toast(p.name+' added');
   }
   function addOrEditItem(productId,index=null){if(state.paidSaleId===state.saleId){toast('This test sale is complete. Clear the sale to begin another.');return;}const p=productById(productId);if(!p)return;const current=index===null?null:state.cart[index];let chosenVariant=current?.variant||p.variants?.[0]||'';let choices=current?.flavors?.slice()||Array(p.scoops||0).fill('').map(()=>state.flavors.find(f=>f.active)?.id||'');let extras=(current?.extras||[]).map(x=>x.name);
@@ -366,10 +362,8 @@
       ??increase?.dataset.incCart??decrease?.dataset.decCart);
     const item=state.cart[index];if(!item)return;
     if(increase||decrease){
-      const next=item.qty+(increase?1:-1);
-      if(next>99){toast('Maximum 99 per line. Add another item instead.');return;}
-      if(next<=0)state.cart.splice(index,1);
-      else item.qty=next;
+      const result=cartApi.adjustQuantity(state,index,increase?1:-1);
+      if(!result.ok){toast(result.reason==='maximum'?'Maximum 99 per line. Add another item instead.':'Unable to update this sale.');return;}
       save();render();return;
     }
     if(item.productId==='manual')editCustomItem(index);else addOrEditItem(item.productId,index);
@@ -410,7 +404,7 @@
       'browser-preview':'You are in a browser preview, not the installed Android app.',
       'unavailable':'Unable to read native Square status. The Android interface may not be available.'
     };
-    alert('Laurie’s Creations POS v1.2.1\\n\\nSquare status: '+status+'\\n\\n'+(messages[status]||'Unknown SDK status.'))
+    alert('Laurie’s Creations POS v1.5.0\\n\\nSquare status: '+status+'\\n\\n'+(messages[status]||'Unknown SDK status.'))
   };
   $('readerSettings').onclick=()=>{if(window.LaurieSquare?.readerSettings)window.LaurieSquare.readerSettings();else toast('Reader settings are available in the Android APK');};
   $('checkout').onclick=()=>{const a=amounts();if(!state.cart.length||a.incomplete||a.total<=0||state.paidSaleId===state.saleId){toast('Review cart and prices first');return;}if(!window.LaurieSquare?.takePayment){toast('Payment SDK works only inside the installed Android APK');return;}
