@@ -1,89 +1,93 @@
-/* Independent mandatory charges for Laurie’s Creations register.
-   Required automatic gratuities are itemized service charges, NOT voluntary tipMoney.
-   Settings are saved locally, without Square Orders/ServiceCharges synchronization.
+/* Laurie’s Creations card-only Gratuity and no-tax register calculation.
+   Gratuity is a mandatory charge only for Sandbox card payments, never for cash.
+   It is not a voluntary tip and must never be passed to Square tipMoney.
+   A separate service charge continues to apply to both cash and card payments.
+   Charges are local checkout data, not Square Order service-charge objects.
 */
 (function(root){
-  'use strict';
-  const safe=n=>Number.isSafeInteger(n)&&n>=0&&n<=1_000_000_000;
-  const defaults={
-    gratuity:{enabled:false,label:'Automatic gratuity',kind:'percent',value:18,taxable:false},
-    service:{enabled:false,label:'Service charge',kind:'percent',value:3,taxable:false}
-  };
-  function normalize(state){
-    if(!state.chargeSettings||typeof state.chargeSettings!=='object')state.chargeSettings={};
-    for(const key of ['gratuity','service']){
-      const candidate=state.chargeSettings[key]||{};
-      const d=defaults[key];
-      state.chargeSettings[key]={
-        enabled:candidate.enabled===true,
-        label:typeof candidate.label==='string'&&candidate.label.trim()?
-          candidate.label.trim().slice(0,70):d.label,
-        kind:['percent','fixed'].includes(candidate.kind)?candidate.kind:d.kind,
-        value:typeof candidate.value==='number'&&Number.isFinite(candidate.value)?candidate.value:d.value,
-        taxable:candidate.taxable===true
-      };
-    }
-    return state.chargeSettings;
-  }
-  function validate(input){
-    if(!input||typeof input!=='object')return 'Invalid charge settings.';
-    if(typeof input.label!=='string'||!input.label.trim()||input.label.trim().length>70)
-      return 'Enter a charge label up to 70 characters.';
-    if(input.kind!=='percent'&&input.kind!=='fixed')return 'Choose percent or fixed amount.';
-    if(input.kind==='percent'){
-      if(!Number.isFinite(input.value)||input.value<0||input.value>100||
-        Math.abs(input.value*100-Math.round(input.value*100))>0.00001)
-        return 'Enter a percentage from 0 to 100, with at most two decimals.';
-    }else if(!safe(input.value)||input.value>1_000_000){
-      return 'Enter a fixed dollar amount from $0.00 to $10,000.00.';
-    }
-    return null;
-  }
-  function saveSettings(state,settings){
-    const validated={};
-    for(const key of ['gratuity','service']){
-      const p=settings?.[key];
-      const message=validate(p);if(message)return {ok:false,error:key+': '+message};
-      validated[key]={
-        enabled:p.enabled===true,label:p.label.trim(),kind:p.kind,value:p.value,taxable:p.taxable===true
-      };
-    }
-    state.chargeSettings=validated;
-    return {ok:true};
-  }
-  function calculate(state){
-    const incomplete=(state.cart||[]).some(x=>!safe(x.price)||!Number.isInteger(x.qty)||
-      x.qty<1||x.qty>99||x.needsReview===true);
-    let sub=0;
-    for(const x of state.cart||[]){
-      if(!safe(x.price)||!Number.isInteger(x.qty)||x.qty<1||x.qty>99)continue;
-      sub+=x.price*x.qty;
-    }
-    const cfg=normalize(state),charges=[];
-    let invalid=false;
-    for(const key of ['gratuity','service']){
-      const rule=cfg[key];
-      if(rule.enabled){
-        if(validate(rule))invalid=true;
-        const cents=rule.kind==='percent'?Math.round(sub*rule.value/100):rule.value;
-        if(!safe(cents))invalid=true;
-        charges.push({key,label:rule.label,amountCents:cents,
-          taxable:rule.taxable,kind:rule.kind,value:rule.value});
-      }
-    }
-    const gratuity=charges.find(c=>c.key==='gratuity')?.amountCents||0;
-    const service=charges.find(c=>c.key==='service')?.amountCents||0;
-    const taxBase=sub+charges.filter(c=>c.taxable).reduce((n,c)=>n+c.amountCents,0);
-    const percent=Number(state.taxPercent)||0;
-    if(!Number.isFinite(percent)||percent<0||percent>30)invalid=true;
-    const tax=Math.round(taxBase*percent/100);
-    const total=sub+gratuity+service+tax;
-    if(!safe(total)||!safe(tax))invalid=true;
-    return {sub,tax,total,baseTotalCents:total,mandatoryGratuityCents:gratuity,
-      serviceChargeCents:service,charges,taxBaseCents:taxBase,
-      incomplete:incomplete||invalid,invalid};
-  }
-  const api={normalize,validate,saveSettings,calculate};
-  root.LaurieCheckoutCharges=api;
-  if(typeof module!=='undefined'&&module.exports)module.exports=api;
+ 'use strict';
+ const safe=n=>Number.isSafeInteger(n)&&n>=0&&n<=1000000000;
+ const defaults={
+   gratuity:{enabled:false,label:'Gratuity',kind:'percent',value:18},
+   service:{enabled:false,label:'Service charge',kind:'percent',value:3}
+ };
+ function normalize(state){
+   // Tax collection has been disabled throughout the v1.8 checkout flow.
+   // Clear legacy/imported local tax rates, but do not change historical sale records.
+   state.taxPercent=0;
+   if(!state.chargeSettings||typeof state.chargeSettings!=='object')state.chargeSettings={};
+   for(const key of ['gratuity','service']){
+     const old=state.chargeSettings[key]||{};
+     const d=defaults[key];
+     state.chargeSettings[key]={
+       enabled:old.enabled===true,
+       label:key==='gratuity'?'Gratuity':
+         (typeof old.label==='string'&&old.label.trim()?old.label.trim().slice(0,70):d.label),
+       kind:['percent','fixed'].includes(old.kind)?old.kind:d.kind,
+       value:typeof old.value==='number'&&Number.isFinite(old.value)?old.value:d.value
+     };
+   }
+   return state.chargeSettings;
+ }
+ function validate(rule){
+   if(!rule||typeof rule!=='object')return 'Invalid charge settings.';
+   if(typeof rule.label!=='string'||!rule.label.trim()||rule.label.trim().length>70)
+     return 'Enter a charge label up to 70 characters.';
+   if(!['percent','fixed'].includes(rule.kind))return 'Choose percent or fixed amount.';
+   if(rule.kind==='percent'){
+     if(!Number.isFinite(rule.value)||rule.value<0||rule.value>100||
+       Math.abs(rule.value*100-Math.round(rule.value*100))>0.00001)
+       return 'Enter a rate between 0% and 100%, with up to two decimal places.';
+   }else if(!safe(rule.value)||rule.value>1000000){
+     return 'Enter a fixed charge of $0.00 to $10,000.00.';
+   }
+   return null;
+ }
+ function saveSettings(state,input){
+   const updated={};
+   for(const key of ['gratuity','service']){
+     const rule=input?.[key];
+     const prepared={...rule,label:key==='gratuity'?'Gratuity':rule?.label};
+     const error=validate(prepared);
+     if(error)return {ok:false,error:key+': '+error};
+     updated[key]={
+       enabled:prepared.enabled===true,label:prepared.label.trim(),
+       kind:prepared.kind,value:prepared.value
+     };
+   }
+   state.chargeSettings=updated;
+   state.taxPercent=0;
+   return {ok:true};
+ }
+ function calculate(state,method='cash'){
+   const validMethod=method==='cash'||method==='card';
+   let invalid=!validMethod;
+   let sub=0;
+   for(const item of state.cart||[]){
+     if(!safe(item.price)||!Number.isInteger(item.qty)||item.qty<1||item.qty>99||
+       item.needsReview===true){invalid=true;continue;}
+     sub+=item.price*item.qty;
+   }
+   const settings=normalize(state),charges=[];
+   for(const key of ['gratuity','service']){
+     const rule=settings[key];
+     if(!rule.enabled||(key==='gratuity'&&method!=='card'))continue;
+     if(validate(rule))invalid=true;
+     const cents=rule.kind==='percent'?Math.round(sub*rule.value/100):rule.value;
+     if(!safe(cents))invalid=true;
+     charges.push({key,label:key==='gratuity'?'Gratuity':rule.label,
+       amountCents:cents,kind:rule.kind,value:rule.value,
+       paymentMethod:key==='gratuity'?'card':'both'});
+   }
+   const gratuity=charges.find(c=>c.key==='gratuity')?.amountCents||0;
+   const service=charges.find(c=>c.key==='service')?.amountCents||0;
+   const tax=0,total=sub+gratuity+service;
+   if(!safe(total))invalid=true;
+   return {sub,tax,total,baseTotalCents:total,mandatoryGratuityCents:gratuity,
+     serviceChargeCents:service,charges,taxBaseCents:0,method,
+     incomplete:invalid,invalid};
+ }
+ const api={normalize,validate,saveSettings,calculate};
+ root.LaurieCheckoutCharges=api;
+ if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
