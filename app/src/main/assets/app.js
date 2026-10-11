@@ -4,17 +4,23 @@
 (() => {
   'use strict';
   const KEY='laurie-square-mobile-v1';
-  const defaultState=()=>({
-    products:[
-      {id:'tumbler',name:'Tumbler',category:'Tumblers',icon:'🥤',price:2500,variants:['Black OSU','White OSU','Black OU','White OU'],scoops:0,extras:[]},
-      {id:'autism',name:'Autism awareness',category:'Crafts',icon:'💜',price:100,variants:[],scoops:0,extras:[]},
-      {id:'halloween',name:'Halloween bracelet',category:'Beads',icon:'🎃',price:300,variants:[],scoops:0,extras:[]},
-      {id:'ice1',name:'Ice cream — 1 scoop',category:'Ice Cream',icon:'🍦',price:null,variants:[],scoops:1,extras:[]},
-      {id:'ice2',name:'Ice cream — 2 scoops',category:'Ice Cream',icon:'🍨',price:null,variants:[],scoops:2,extras:[]}
-    ],
-    flavors:[{id:'vanilla',name:'Vanilla',price:0,active:true},{id:'chocolate',name:'Chocolate',price:0,active:true},{id:'strawberry',name:'Strawberry',price:0,active:true}],
-    taxPercent:0,cart:[],saleId:makeId(),paidSaleId:null
-  });
+  // Saved v4.4 register snapshot; local changes always take precedence on existing installs.
+  const savedCatalog=window.LaurieLegacyCatalog||{products:[],flavors:[]};
+  const fallbackProducts=[
+    {id:'tumbler',name:'Tumbler',category:'Tumblers',icon:'🥤',price:2500,variants:['Black OSU','White OSU','Black OU','White OU'],scoops:0,extras:[]},
+    {id:'autism',name:'Autism awareness',category:'Crafts',icon:'💜',price:100,variants:[],scoops:0,extras:[]},
+    {id:'halloween',name:'Halloween bracelet',category:'Beads',icon:'🎃',price:300,variants:[],scoops:0,extras:[]}
+  ];
+  const defaultState=()=>{
+    const products=Array.isArray(savedCatalog.products)&&savedCatalog.products.length?savedCatalog.products.map(p=>({...p})):fallbackProducts.slice();
+    for(const p of fallbackProducts)if(!products.some(x=>x.name.toLowerCase()===p.name.toLowerCase()))products.push(p);
+    const flavors=Array.isArray(savedCatalog.flavors)&&savedCatalog.flavors.length?savedCatalog.flavors.map(f=>({...f})):[
+      {id:'vanilla',name:'Vanilla',price:0,active:true},
+      {id:'chocolate',name:'Chocolate',price:0,active:true},
+      {id:'strawberry',name:'Strawberry',price:0,active:true}
+    ];
+    return {products,flavors,taxPercent:0,cart:[],saleId:makeId(),paidSaleId:null,favorites:products.slice(0,8).map(p=>p.id),savedCatalogVersion:savedCatalog.version||null};
+  };
   function makeId(){return 'LC'+Date.now().toString(36).toUpperCase()+Math.random().toString(36).slice(2,7).toUpperCase();}
   let state;
   try {state=JSON.parse(localStorage.getItem(KEY))||defaultState();}catch(_){state=defaultState();}
@@ -73,17 +79,24 @@
     $('addCustomAmount').disabled=!Number(amountDigits||0)||Number(amountDigits)>1000000;
   }
   function lineTotal(item){if(item.price===null||!Number.isSafeInteger(item.price))return null;return item.price*(item.qty||1);}
-  function amounts(){const incomplete=state.cart.some(x=>lineTotal(x)===null);const sub=state.cart.reduce((sum,x)=>sum+(lineTotal(x)||0),0);const percent=Number(state.taxPercent)||0;const tax=Math.round(sub*percent/100);return {sub,tax,total:sub+tax,incomplete};}
+  function amounts(){const incomplete=state.cart.some(x=>lineTotal(x)===null||x.needsReview===true);const sub=state.cart.reduce((sum,x)=>sum+(lineTotal(x)||0),0);const percent=Number(state.taxPercent)||0;const tax=Math.round(sub*percent/100);return {sub,tax,total:sub+tax,incomplete};}
   function renderCart(){const a=amounts();$('cartList').innerHTML=state.cart.length?state.cart.map((x,i)=>`<div class="cartitem"><div class="itemText"><strong>${e(x.qty)}× ${e(x.name)}</strong><small>${[x.variant||'',...(x.flavors||[]).map(id=>state.flavors.find(f=>f.id===id)?.name||'Removed flavor'),...(x.extras||[]).map(t=>t.name)].filter(Boolean).map(e).join(' · ')}</small></div><span class="itemprice">${format(lineTotal(x))}</span><button class="mini" data-edit-cart="${i}">Edit</button></div>`).join('') :'<p class="empty">Your sale is empty.<br>Tap an item to begin.</p>';
     $('subtotal').textContent=format(a.sub);$('tax').textContent=format(a.tax);$('total').textContent=format(a.total);$('taxCaption').textContent=`(${Number(state.taxPercent)||0}%)`;
-    const paid=state.paidSaleId===state.saleId;$('checkout').disabled=!state.cart.length||a.incomplete||paid||a.total<=0;$('checkout').textContent=paid?'Test sale completed':a.incomplete?'Set missing prices': 'Charge '+format(a.total)+' · TEST';$('checkoutNotice').textContent=paid?'Sandbox payment reported success; do not charge this sale again.':a.incomplete?'One or more products need a verified price. Tap Manage → Products.':'Tax is set manually. Verify tax, modifiers, total, and Square location before checkout.';$('cartItemCount').textContent=state.cart.reduce((n,x)=>n+(x.qty||1),0)+' items';updateMobileCart();save();}
+    const paid=state.paidSaleId===state.saleId;$('checkout').disabled=!state.cart.length||a.incomplete||paid||a.total<=0;$('checkout').textContent=paid?'Test sale completed':a.incomplete?'Review item prices': 'Charge '+format(a.total)+' · TEST';$('checkoutNotice').textContent=paid?'Sandbox payment reported success; do not charge this sale again.':a.incomplete?'One or more items came from an older snapshot and require price verification. Edit the product under More → Products.':'Tax is set manually. Verify tax, modifiers, total, and Square location before checkout.';$('cartItemCount').textContent=state.cart.reduce((n,x)=>n+(x.qty||1),0)+' items';updateMobileCart();save();}
   function render(){catalog();renderCart();syncSquareStatus();}
   function productById(id){return state.products.find(p=>p.id===id);}
   function addOrEditItem(productId,index=null){if(state.paidSaleId===state.saleId){toast('This test sale is complete. Clear the sale to begin another.');return;}const p=productById(productId);if(!p)return;const current=index===null?null:state.cart[index];let chosenVariant=current?.variant||p.variants?.[0]||'';let choices=current?.flavors?.slice()||Array(p.scoops||0).fill('').map(()=>state.flavors.find(f=>f.active)?.id||'');let extras=(current?.extras||[]).map(x=>x.name);
-    const variations=(p.variants||[]).length?`<label class="field">Variation<select id="choiceVariant">${p.variants.map(v=>`<option value="${e(v)}" ${v===chosenVariant?'selected':''}>${e(v)}</option>`).join('')}</select></label>`:'';
+    const variations=(p.variants||[]).length?`<label class="field">Variation<select id="choiceVariant">${p.variants.map(v=>`<option value="${e(v)}" ${v===chosenVariant?'selected':''}>${e(v)}${p.variantPrices&&p.variantPrices[v]!=null?' ('+format(p.variantPrices[v])+')':''}</option>`).join('')}</select></label>`:'';
     const flavorRows=Array.from({length:p.scoops||0},(_,j)=>`<label class="field">Scoop ${j+1}<select class="flavorSelect" data-scoop="${j}">${state.flavors.filter(f=>f.active||choices[j]===f.id).map(f=>`<option value="${e(f.id)}" ${choices[j]===f.id?'selected':''}>${e(f.name)}${f.price?' (+'+format(f.price)+')':''}${!f.active?' (unavailable)':''}</option>`).join('')}</select></label>`).join('');
     const extraRows=(p.extras||[]).length?`<div class="divider"></div><strong>Modifiers</strong>${p.extras.map((x,j)=>`<label class="field"><input type="checkbox" data-extra="${j}" ${extras.includes(x.name)?'checked':''}> ${e(x.name)} (+${format(x.price)})</label>`).join('')}`:'';
-    openModal(index===null?'Add '+p.name:'Edit cart item',variations+flavorRows+extraRows+`<label class="field">Quantity<input id="quantity" type="number" inputmode="numeric" min="1" max="99" value="${current?.qty||1}"></label><p class="fine">Base price: ${format(p.price)}. Changes to base prices happen in Manage → Products.</p>`,[
+    const groupRows=(p.modifierGroups||[]).map((group,j)=>{
+      const limit=group.max===0?99:group.max;
+      return `<div class="modifierGroup"><strong>${e(group.name)}</strong><small>${group.min>0?'Select at least '+group.min:'Optional'}${limit<99?' · Up to '+limit:''}</small><div class="modifierChoices">${(group.options||[]).map((opt,k)=>{
+        const checked=(current?.extras||[]).some(x=>x.name===opt.name && x.group===group.name);
+        return `<label><input type="checkbox" data-group="${j}" data-option="${k}" ${checked?'checked':''}><span>${e(opt.name)}${opt.price===null?' · PRICE NEEDED':' · '+format(opt.price)}</span></label>`;
+      }).join('')}</div></div>`;
+    }).join('');
+    openModal(index===null?'Add '+p.name:'Edit cart item',variations+flavorRows+extraRows+groupRows+`<label class="field">Quantity<input id="quantity" type="number" inputmode="numeric" min="1" max="99" value="${current?.qty||1}"></label><p class="fine">Base price: ${format(p.price)}. Changes to base prices happen in Manage → Products.</p>`,[
       ...(index!==null?[{label:'Remove item',click:()=>{state.cart.splice(index,1);save();closeModal();render();}}]:[]),
       {label:'Cancel',click:closeModal},
       {label:index===null?'Add to cart':'Save changes',kind:'primary',click:()=>{
@@ -91,9 +104,19 @@
           const selectedFlavors=[...$('dialogBody').querySelectorAll('.flavorSelect')].map(el=>el.value);
           if(selectedFlavors.some(id=>!state.flavors.find(f=>f.id===id)?.active)){toast('Choose an available flavor');return;}
           const selectedExtras=[...$('dialogBody').querySelectorAll('[data-extra]:checked')].map(el=>p.extras[Number(el.dataset.extra)]);
-          const plus=selectedFlavors.reduce((sum,id)=>sum+(state.flavors.find(f=>f.id===id)?.price||0),0)+selectedExtras.reduce((s,x)=>s+x.price,0);
-          const price=p.price===null?null:p.price+plus;
-          const item={key:makeId(),productId:p.id,name:p.name,variant:$('choiceVariant')?.value||'',flavors:selectedFlavors,extras:selectedExtras,price,qty};
+          for(const [j,group] of (p.modifierGroups||[]).entries()){
+            const checked=[...$('dialogBody').querySelectorAll('[data-group="'+j+'"]:checked')];
+            const maximum=group.max===0?99:group.max;
+            if(checked.length<(group.min||0)||checked.length>maximum){toast(group.name+': select '+(group.min||0)+' to '+maximum+' options.');return;}
+            const choices=checked.map(el=>group.options[Number(el.dataset.option)]);
+            if(choices.some(x=>x.price===null)){toast('A modifier price has not been verified. Update the item before checkout.');return;}
+            selectedExtras.push(...choices.map(x=>({name:x.name,price:x.price,group:group.name})));
+          }
+          const selectedVariant=$('choiceVariant')?.value||'';
+          const variablePrice=selectedVariant&&p.variantPrices&&Object.prototype.hasOwnProperty.call(p.variantPrices,selectedVariant)?p.variantPrices[selectedVariant]:p.price;
+          const plus=selectedFlavors.reduce((sum,id)=>sum+(state.flavors.find(f=>f.id===id)?.price||0),0)+selectedExtras.reduce((sum,x)=>sum+(x.price||0),0);
+          const price=variablePrice===null?null:variablePrice+plus;
+          const item={key:makeId(),productId:p.id,name:p.name,variant:selectedVariant,flavors:selectedFlavors,extras:selectedExtras,price,qty,needsReview:p.reviewRequired===true};
           if(index===null)state.cart.push(item);else state.cart[index]=item;
           state.paidSaleId=null;save();closeModal();render();toast(index===null?'Added to cart':'Item updated');
       }}
@@ -105,6 +128,7 @@
     <label class="field">Category<input id="productCategory" maxlength="35" value="${e(p?.category||'Crafts')}"></label>
     <label class="field">Product icon or emoji<input id="productIcon" maxlength="10" value="${e(p?.icon||'🧵')}"></label>
     <label class="field">Base price in dollars (leave blank if unverified)<input id="productPrice" type="text" inputmode="decimal" value="${p?.price===null||p===null?'':(p.price/100).toFixed(2)}"></label>
+    ${p?.source==='saved-snapshot'?`<label class="field"><input type="checkbox" id="priceConfirmed" ${p.reviewRequired?'':'checked'}> I verified prices and modifiers against current Square</label><p class="fine">This item was restored from the previous register, not synced from Square. Review variations and modifiers before charging.</p>`:''}
     <label class="field">Variations (one per line)<textarea id="productVariants" rows="4" style="width:100%">${e((p?.variants||[]).join('\n'))}</textarea></label>
     <label class="field">Number of ice cream scoops (0–6)<input id="productScoops" type="number" min="0" max="6" value="${p?.scoops||0}"></label>
     <label class="field">Modifiers (one per line: name|upcharge in dollars)<textarea id="productExtras" rows="4" style="width:100%" placeholder="Gift wrap|1.00">${e((p?.extras||[]).map(x=>x.name+'|'+(x.price/100).toFixed(2)).join('\n'))}</textarea></label>
@@ -118,7 +142,9 @@
         const extras=[];for(const line of $('productExtras').value.split('\n').map(x=>x.trim()).filter(Boolean)){
           const pieces=line.split('|');const name=pieces[0]?.trim();const amount=moneyIn(pieces[1]);if(!name||amount===null||Number.isNaN(amount)){toast('Invalid modifier. Use name|1.00');return;}extras.push({name,price:amount});
         }
-        const value={id:p?.id||makeId(),name,category:cat,icon:$('productIcon').value.trim()||'🧵',price,variants,scoops,extras};
+        const variantPrices=Object.fromEntries(variants.map(v=>[v,p?.variantPrices?.[v]??price]));
+        const value={id:p?.id||makeId(),name,category:cat,icon:$('productIcon').value.trim()||'🧵',price,variants,variantPrices,scoops,extras,
+          modifierGroups:p?.modifierGroups||[],source:p?.source||'local',reviewRequired:p?.source==='saved-snapshot'?!($('priceConfirmed')?.checked):false};
         if(p)state.products=state.products.map(x=>x.id===id?value:x);else state.products.push(value);
         save();closeModal();render();toast('Product saved');
       }}
@@ -133,6 +159,7 @@
       {label:'Export backup',click:()=>{const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='lauries-register-backup.json';link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);toast('Backup exported');}},
       {label:'Import backup',click:()=>{$('importFile').click();}},
       {label:'Flavors',click:flavorsEditor},
+      {label:'Restore saved library',click:restoreSavedCatalog},
       {label:'New product',click:()=>editProduct()},
       {label:'Save tax',kind:'primary',click:()=>{const rate=Number($('taxRate').value);if(!Number.isFinite(rate)||rate<0||rate>30){toast('Enter a tax rate from 0–30%');return;}state.taxPercent=rate;save();closeModal();render();toast('Tax updated');}}
     ]);
@@ -216,6 +243,31 @@
   $('manageFromMore').onclick=manage;
   $('flavorsFromMore').onclick=flavorsEditor;
   $('newFromMore').onclick=()=>editProduct();
+
+  function restoreSavedCatalog(){
+    const incoming=Array.isArray(savedCatalog.products)?savedCatalog.products:[];
+    if(!incoming.length){toast('No saved catalog is bundled in this app.');return;}
+    if(!confirm('Restore Laurie’s Creations saved catalog? This adds missing items and flavors but will not overwrite existing products, prices or the current cart. The older snapshot is NOT a live Square sync.'))return;
+    const existing=new Set(state.products.map(p=>p.name.trim().toLowerCase()));
+    let count=0;
+    for(const product of incoming){
+      const key=product.name.trim().toLowerCase();
+      if(existing.has(key))continue;
+      state.products.push({...product});existing.add(key);count++;
+    }
+    const flavorNames=new Set(state.flavors.map(f=>f.name.trim().toLowerCase()));
+    let addedFlavors=0;
+    for(const flavor of savedCatalog.flavors||[]){
+      const key=flavor.name.trim().toLowerCase();
+      if(flavorNames.has(key))continue;
+      state.flavors.push({...flavor});flavorNames.add(key);addedFlavors++;
+    }
+    state.savedCatalogVersion=savedCatalog.version;
+    save();closeModal();render();
+    toast('Restored '+count+' missing products and '+addedFlavors+' flavors.');
+    showSection('checkout');registerTab='library';catalog();
+  }
+  $('restoreCatalog').onclick=restoreSavedCatalog;
   $('mobileCartBar').onclick=()=>{
     document.body.classList.add('cart-open');$('cartScrim').hidden=false;
   };
