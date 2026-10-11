@@ -30,11 +30,19 @@
   const modifiersApi=window.LaurieModifierGroups;
   const cartApi=window.LaurieRegisterCart;
   modifiersApi.normalize(state); // Preserves and migrates saved per-product modifier groups.
+  const operationsApi=window.LaurieOperations;
+  operationsApi.normalize(state); // Device-local operations data.
   const $=id=>document.getElementById(id);
   const format=cents=>cents===null||!Number.isSafeInteger(cents)?'PRICE NEEDED':(cents/100).toLocaleString('en-US',{style:'currency',currency:'USD'});
   const e=value=>String(value??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
   const moneyIn=val=>{const s=String(val??'').trim();if(s==='')return null;if(!/^\d+(?:\.\d{1,2})?$/.test(s))return NaN;const n=Math.round(Number(s)*100);return Number.isSafeInteger(n)&&n<=100000000?n:NaN;};
   function save(){localStorage.setItem(KEY,JSON.stringify(state));}
+  let operationsUI;
+  function initOperationsUI(){
+    operationsUI=window.LaurieOperationsUI.init(state,{
+      escape:e,format,$,save,render,openModal,closeModal,toast,moneyIn,amounts,squareState
+    });
+  }
   function toast(msg){const t=$('toast');t.textContent=msg;t.style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.style.display='none',3800);}
   let category='All';
   let registerTab='favorites';
@@ -100,7 +108,8 @@
       <div class="productTile">
         <button class="product" type="button" data-product="${e(p.id)}" aria-label="Add ${e(p.name)}">
           <span class="emoji" aria-hidden="true">${e(p.icon||'🧵')}</span>
-          <span class="tileInfo"><span class="name">${e(p.name)}</span><span class="tileMeta">${e(p.category||'Item')}</span></span>
+          <span class="tileInfo"><span class="name">${e(p.name)}</span><span class="tileMeta">${e(p.category||'Item')}${operationsApi.inventoryRecord(state,p.id).enabled?
+  ' · '+(operationsApi.inventoryRecord(state,p.id).quantity?'In stock: '+operationsApi.inventoryRecord(state,p.id).quantity:'Out of stock'):''}</span></span>
           <span class="${p.price===null?'unverified':'price'}">${format(p.price)}${p.scoops?' · '+p.scoops+' scoop'+(p.scoops>1?'s':''):''}</span>
         </button>
         ${registerTab==='library'?`<button type="button" class="favoriteToggle ${currentGroup.productIds.includes(p.id)?'active':''}" data-favorite="${e(p.id)}" aria-label="${currentGroup.productIds.includes(p.id)?'Remove from':'Add to'} ${e(currentGroup.name)}" aria-pressed="${currentGroup.productIds.includes(p.id)}">${currentGroup.productIds.includes(p.id)?'★':'☆'}</button>`:''}
@@ -141,7 +150,12 @@
     updateMobileCart();
     save();
   }
-  function render(){catalog();renderCart();syncSquareStatus();}
+  function render(){
+    catalog();renderCart();syncSquareStatus();
+    if(operationsUI){
+      $('opsActivityList').innerHTML=operationsUI.recentActivity();
+    }
+  }
   function productById(id){return state.products.find(p=>p.id===id);}
   // Like a register's quick tile: one tap adds a simple item.
   // Products with variations, flavors, or modifier choices always open the options sheet.
@@ -151,6 +165,8 @@
     if(!cartApi.canQuickAdd(p,modifiersApi.forProduct(state,p).length)){
       addOrEditItem(productId);return;
     }
+    const qtyInCart=state.cart.filter(x=>x.productId===p.id).reduce((sum,x)=>sum+x.qty,0);
+    if(!operationsApi.available(state,p.id,qtyInCart+1)){toast(p.name+' is out of locally tracked stock.');return;}
     const result=cartApi.addSimple(state,p,makeId);
     if(!result.ok){toast('Clear the completed sale first.');return;}
     save();render();toast(p.name+' added');
@@ -190,6 +206,11 @@
           const plus=selectedFlavors.reduce((sum,id)=>sum+(state.flavors.find(f=>f.id===id)?.price||0),0)+selectedExtras.reduce((sum,x)=>sum+(x.price||0),0);
           const price=variablePrice===null?null:variablePrice+plus;
           const item={key:makeId(),productId:p.id,name:p.name,variant:selectedVariant,flavors:selectedFlavors,extras:selectedExtras,price,qty,needsReview:p.reviewRequired===true};
+          const already=state.cart.reduce((sum,existing,i)=>
+            i!==index&&existing.productId===p.id?sum+existing.qty:sum,0);
+          if(!operationsApi.available(state,p.id,already+qty)){
+            toast('Not enough stock for '+p.name+'. Adjust Inventory in More.');return;
+          }
           if(index===null)state.cart.push(item);else state.cart[index]=item;
           state.paidSaleId=null;save();closeModal();render();toast(index===null?'Added to cart':'Item updated');
       }}
@@ -343,11 +364,23 @@
       {label:'Save tax',kind:'primary',click:()=>{const rate=Number($('taxRate').value);if(!Number.isFinite(rate)||rate<0||rate>30){toast('Enter a tax rate from 0–30%');return;}state.taxPercent=rate;save();closeModal();render();toast('Tax updated');}}
     ]);
   }
-  $('importFile').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{const src=JSON.parse(await file.text());if(!Array.isArray(src.products)||!Array.isArray(src.flavors)||!Array.isArray(src.cart))throw Error('Invalid backup');if(!confirm('Replace your current register settings and cart with this backup?'))return;state=src;groupsApi.normalize(state);modifiersApi.normalize(state);state.saleId=makeId();state.paidSaleId=null;save();closeModal();render();toast('Backup restored — verify prices');}catch(_){toast('Could not import this backup');}finally{ev.target.value='';}});
+  $('importFile').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{const src=JSON.parse(await file.text());if(!Array.isArray(src.products)||!Array.isArray(src.flavors)||!Array.isArray(src.cart))throw Error('Invalid backup');if(!confirm('Replace your current register settings and cart with this backup?'))return;state=src;groupsApi.normalize(state);modifiersApi.normalize(state);operationsApi.normalize(state);initOperationsUI();state.saleId=makeId();state.paidSaleId=null;state.pendingSquare=null;save();closeModal();render();toast('Backup restored — verify prices');}catch(_){toast('Could not import this backup');}finally{ev.target.value='';}});
   function squareState(){try{return window.LaurieSquare?.squareState?.()||'browser-preview';}catch(_){return 'unavailable';}}
   function syncSquareStatus(){const v=squareState(),text={'not-configured':'Add Sandbox app ID','unauthorized-sandbox':'Sandbox not connected','authorized-sandbox':'Sandbox connected','browser-preview':'Browser preview only','unavailable':'Square unavailable'};$('sqStatus').textContent=text[v]||v;}
   window.receiveSquareEvent=function(payload){let msg;try{msg=JSON.parse(payload);}catch(_){return;}
-    if(msg.type==='success'){state.paidSaleId=state.saleId;save();renderCart();toast('Square SANDBOX approved a test payment.');alert('TEST PAYMENT APPROVED (not a real charge).\nPayment ID: '+(msg.paymentId||'Check Sandbox Dashboard')+'\n\nCart is kept for review. Use Clear to begin a new sale.');}
+    if(msg.type==='success'){
+      const pending=state.pendingSquare;
+      const validPending=pending&&pending.saleId===state.saleId;
+      const result=validPending?
+        operationsApi.recordSale(state,'sandbox-card',pending.tipCents||0,null,msg.paymentId||''):
+        {ok:false,error:'No matching pending checkout record.'};
+      // A genuine SDK success must lock the sale even if local tracking could not be written.
+      state.paidSaleId=state.saleId;state.pendingSquare=null;
+      save();render();toast('Square SANDBOX approved a test payment.');
+      alert('TEST PAYMENT APPROVED (not a real charge).\nPayment ID: '+(msg.paymentId||'Check Sandbox Dashboard')+
+        '\n\n'+(result.ok?'Local sale and stock updated.':'Local activity could not be recorded: '+result.error)+
+        '\n\nCart is kept for review. Use Clear to begin a new sale.');
+    }
     else {toast(msg.message||msg.type);if(msg.type==='authorized')syncSquareStatus();}
   };
   $('categories').addEventListener('click',ev=>{const b=ev.target.closest('[data-cat]');if(b){category=b.dataset.cat;catalog();}});
@@ -362,6 +395,10 @@
       ??increase?.dataset.incCart??decrease?.dataset.decCart);
     const item=state.cart[index];if(!item)return;
     if(increase||decrease){
+      if(increase&&item.productId!=='manual'){
+        const count=state.cart.filter(x=>x.productId===item.productId).reduce((sum,x)=>sum+x.qty,0);
+        if(!operationsApi.available(state,item.productId,count+1)){toast('Not enough locally tracked stock.');return;}
+      }
       const result=cartApi.adjustQuantity(state,index,increase?1:-1);
       if(!result.ok){toast(result.reason==='maximum'?'Maximum 99 per line. Add another item instead.':'Unable to update this sale.');return;}
       save();render();return;
@@ -372,7 +409,7 @@
   $('newProduct').onclick=()=>editProduct();$('settingsButton').onclick=manage;
   $('clearCart').onclick=()=>{
     if((state.cart.length||state.saleNote)&&!confirm('Clear this sale and its note? Check payment status in Square first if you attempted checkout.'))return;
-    state.cart=[];state.saleNote='';state.saleId=makeId();state.paidSaleId=null;render();
+    state.cart=[];state.saleNote='';state.saleId=makeId();state.paidSaleId=null;state.pendingSquare=null;operationsApi.normalize(state).selectedCustomerId=null;render();
   };
   $('saleNoteButton').onclick=()=>{
     if(state.paidSaleId===state.saleId){toast('Clear the completed sale before changing its note.');return;}
@@ -407,13 +444,7 @@
     alert('Laurie’s Creations POS v1.5.0\\n\\nSquare status: '+status+'\\n\\n'+(messages[status]||'Unknown SDK status.'))
   };
   $('readerSettings').onclick=()=>{if(window.LaurieSquare?.readerSettings)window.LaurieSquare.readerSettings();else toast('Reader settings are available in the Android APK');};
-  $('checkout').onclick=()=>{const a=amounts();if(!state.cart.length||a.incomplete||a.total<=0||state.paidSaleId===state.saleId){toast('Review cart and prices first');return;}if(!window.LaurieSquare?.takePayment){toast('Payment SDK works only inside the installed Android APK');return;}
-    if(squareState()!=='authorized-sandbox'){toast('Connect Square Sandbox first');return;}
-    const lines=state.cart.map(x=>`${x.qty}x ${x.name}${x.variant?' / '+x.variant:''}${x.flavors?.length?' / '+x.flavors.map(id=>state.flavors.find(f=>f.id===id)?.name||'Unknown').join('+'):''}`).join('; ');
-    const note=(lines+(state.saleNote?' | Sale note: '+state.saleNote:'')).slice(0,450);
-    const ok=confirm('SQUARE SANDBOX TEST (no real charge)\n\nSubtotal: '+format(a.sub)+'\nManual tax: '+format(a.tax)+' ('+state.taxPercent+'%)\nTOTAL: '+format(a.total)+'\n\nConfirm all prices, modifiers, tax and location are correct. Proceed to Square?');if(!ok)return;
-    window.LaurieSquare.takePayment(a.total,state.saleId,note);
-  };
+  $('checkout').onclick=()=>operationsUI.checkout();
   // Square-style navigation, favorites and custom amount keypad. All sale data remains local.
   function updateMobileCart(){
     const a=amounts();
@@ -699,5 +730,13 @@
     state.cart.push({key:makeId(),productId:'manual',name:'Custom amount',variant:'',flavors:[],extras:[],price:cents,qty:1});
     amountDigits='';save();render();toast('Custom amount added to sale');
   };
+    initOperationsUI();
+    $('staffTool').onclick=()=>operationsUI.staff();
+    $('inventoryTool').onclick=()=>operationsUI.inventory();
+    $('cashTool').onclick=()=>operationsUI.cashDrawer();
+    $('loyaltyTool').onclick=()=>operationsUI.loyalty();
+    $('displayTool').onclick=()=>operationsUI.displayPreview();
+    $('paymentLinksTool').onclick=()=>operationsUI.connectionInfo('links');
+    $('bankingTool').onclick=()=>operationsUI.connectionInfo('banking');
     render();document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncSquareStatus();});
 })();

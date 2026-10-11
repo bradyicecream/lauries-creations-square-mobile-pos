@@ -3,6 +3,7 @@ const assert=require('node:assert/strict');
 const html=fs.readFileSync('app/src/main/assets/index.html','utf8');
 const css=fs.readFileSync('app/src/main/assets/square-register.css','utf8');
 const js=fs.readFileSync('app/src/main/assets/app.js','utf8');
+const operationsUI=fs.readFileSync('app/src/main/assets/operations-ui.js','utf8');
 const ids=['registerTabs','productGrid','cartList','itemSearch','cartPane','checkout','saleNoteButton','saleNotePreview','saleNoteLabel','mobileCartBar','bottomNav','manageFavoriteTabs','squareConnect','squareDiagnostic','modifierGroupsFromMore','favoritesToolbar','libraryFavoritesTarget','chooseFavoriteGroup'];
 for(const id of ids)assert.ok(html.includes('id="'+id+'"'),'Missing required UI element: '+id);
 assert.equal([...html.matchAll(/id="([^"]+)"/g)].length,new Set([...html.matchAll(/id="([^"]+)"/g)].map(x=>x[1])).size,'Duplicate ids');
@@ -18,7 +19,7 @@ assert.ok(js.includes("modifiersApi.forProduct"),'Modifier choice flows preserve
 assert.ok(js.includes("groupsApi.isUtilityTabVisible"),'User can still hide Keypad and Library');
 assert.ok(js.includes("saleNoteInput"),'Sale notes are editable');
 assert.ok(js.includes("state.saleNote"),'Sale note included with current sale');
-assert.ok(js.includes("window.LaurieSquare.takePayment"),'Sandbox checkout bridge preserved');
+assert.ok(operationsUI.includes("root.LaurieSquare.takePayment"),'Sandbox checkout bridge preserved in operations UI');
 assert.ok(html.includes('NOT CONNECTED TO LIVE SQUARE CATALOG'),'No live catalog sync claim');
 assert.ok(!html.includes('O.P. Gallo'),'Wrong business branding absent');
 console.log('Square-inspired layout, integration and preserved features passed.');

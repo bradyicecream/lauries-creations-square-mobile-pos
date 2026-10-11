@@ -1,0 +1,41 @@
+/* Local operations controls — Zebra TC21 handheld and ET51 tablet */
+.opsWarning{background:#faf5e9;border:1px solid #f0e2b8;border-radius:9px;color:#746133;padding:10px 12px;font-size:12px;line-height:1.45;margin:0 0 14px}
+.opsRow{display:flex;align-items:center;gap:8px;justify-content:space-between;border-bottom:1px solid #efedf1;padding:11px 0;font-size:13px}
+.opsRow:last-child{border-bottom:0}
+.opsLabel{flex:1;min-width:0}
+.opsLabel strong{display:block;font-size:13px;color:#28212d;overflow-wrap:anywhere}
+.opsLabel small{display:block;font-size:11px;color:#88818c;margin-top:4px;line-height:1.4}
+.opsRow button{flex:none;min-height:40px;font-size:12px}
+.opsDivider{border-top:1px solid #ece8ef;margin:15px 0}
+.opsKpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0}
+.opsKpis>div{padding:13px;border:1px solid #e9e3ed;border-radius:9px;background:#faf8fc}
+.opsKpis strong{font-size:19px;font-weight:820;display:block;color:#5f357e;overflow-wrap:anywhere}
+.opsKpis small{font-size:11px;color:#766f7c;display:block;margin-top:3px}
+.opsFormRow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.opsCheck{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:720;padding:12px 4px}
+.opsCheck input{width:20px;height:20px;accent-color:var(--purple)}
+.opsMiniHeading{margin:10px 0;font-size:14px;color:#28232d}
+.checkoutSummary{padding:13px;background:#faf8fc;border:1px solid #eae4ef;border-radius:10px}
+.checkoutSummary>div{display:flex;justify-content:space-between;gap:14px;font-size:13px;padding:6px 0}
+.checkoutSummary span{color:#655e68}
+.checkoutSummary strong{color:#332339}
+.checkoutSummary .checkoutGrand{border-top:1px solid #e4dbea;font-size:18px;padding-top:13px;margin-top:7px;font-weight:820}
+.checkoutSummary .checkoutGrand strong{font-size:21px;color:#512a76}
+.tipChoices{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}
+.tipChoice{border:1px solid #e5dcea;border-radius:8px;background:#fff;color:#654678;padding:8px 3px;min-height:44px;font-size:12px}
+.tipChoice.active{background:#6f3c9d;color:#fff;border-color:#6f3c9d}
+.opsQuickCash{display:flex;flex-wrap:wrap;gap:7px}
+.opsQuickCash button{font-size:12px;min-height:43px;border-radius:8px}
+.opsChange{background:#f5f1f8;padding:11px 12px;border-radius:9px;font-size:13px;color:#5b4270}
+.opsChange strong{font-size:16px;color:#3b2357}
+.customerDisplayDemo{background:#2c183c;color:#fff;border-radius:14px;padding:20px 16px;min-height:230px;text-align:center}
+.customerDisplayDemo .customerDisplayBrand{font-size:19px;font-weight:850;letter-spacing:-.3px;color:#fff}
+.customerDisplayDemo p{font-size:13px;color:#dac4ed}
+.customerDisplayLine{display:flex;justify-content:space-between;text-align:left;gap:11px;padding:8px 0;border-bottom:1px solid #ffffff2a;font-size:13px}
+.customerDisplayLine strong{white-space:nowrap}
+.customerDisplayEmpty{padding:24px 0;color:#cbb4d8;font-size:13px}
+.customerDisplayTotal{display:flex;justify-content:space-between;gap:10px;border-top:1px solid #ffffff55;margin-top:10px;padding:14px 0 12px;font-size:17px;font-weight:800}
+.customerDisplayTotal strong{font-size:23px}
+.customerDisplayDemo small{color:#d6c8df;font-size:10px}
+#opsActivityList:empty::after{content:'No locally recorded transactions yet.';color:#807885;font-size:12px}
+@media(max-width:420px){.tipChoices{gap:4px}.tipChoice{font-size:11px}.opsFormRow{gap:7px}}
