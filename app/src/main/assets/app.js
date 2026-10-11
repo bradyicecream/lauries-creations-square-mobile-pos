@@ -151,6 +151,93 @@
     ]);
     if(p.scoops&&!state.flavors.some(f=>f.active))toast('No available flavors. Add flavors in Manage.');
   }
+  function renderModifierOptionRow(option={}){
+    const id=option.id||makeId();
+    const dollars=option.price===null?'':((option.price??0)/100).toFixed(2);
+    return `<div class="modifierEditRow" data-mod-option-row="${e(id)}">
+      <label>Option name<input data-mod-option-name maxlength="80" placeholder="e.g. Purple" value="${e(option.name||'')}"></label>
+      <label>Upcharge ($)<input data-mod-option-price inputmode="decimal" placeholder="0.00" value="${e(dollars)}"></label>
+      <label class="modAvailability"><input type="checkbox" data-mod-option-active ${option.active!==false?'checked':''}><span>Available</span></label>
+      <button type="button" class="modRemove" data-mod-option-remove aria-label="Remove ${e(option.name||'modifier option')}">✕</button>
+    </div>`;
+  }
+  function openModifierGroupEditor(id=null){
+    const group=id?state.modifierSets.find(g=>g.id===id):null;
+    if(id&&!group){toast('Modifier group no longer exists');return;}
+    const rows=(group?.options||[{id:makeId(),name:'',price:0,active:true}]).map(renderModifierOptionRow).join('');
+    openModal(group?'Edit '+group.name:'New modifier group',
+      `<p class="favoriteManagerHelp">Create modifier choices and their upcharges. This same group can be used by products in any category. Changes affect future additions to the cart and do not sync to Square.</p>
+      <label class="field">Group name<input id="modGroupName" maxlength="80" placeholder="Example: Color options" value="${e(group?.name||'')}"></label>
+      <div class="modifierLimits">
+        <label class="field">Minimum choices<input id="modGroupMin" type="number" min="0" max="99" value="${group?.min??0}"></label>
+        <label class="field">Maximum choices<input id="modGroupMax" type="number" min="0" max="99" value="${group?.max??1}"></label>
+      </div>
+      <p class="fine">Maximum 0 means unlimited. A blank option price means unverified, not free. Use 0.00 for no additional charge.</p>
+      <div id="modifierOptionEditor">${rows}</div>
+      <button type="button" class="secondary modAddOption" id="modAddOption">＋ Add modifier option</button>`,[
+      ...(group?[{label:'Delete group',click:()=>{
+        if(!confirm('Delete this modifier group from all assigned items? Product names, categories and previously added cart items are not deleted.'))return;
+        modifiersApi.removeGroup(state,id);save();render();openModifierGroupsManager();toast('Modifier group deleted');
+      }}]:[]),
+      {label:'Cancel',click:openModifierGroupsManager},
+      {label:'Save group',kind:'primary',click:()=>{
+        const name=$('modGroupName').value.trim();
+        const min=Number($('modGroupMin').value),max=Number($('modGroupMax').value);
+        if(!Number.isInteger(min)||!Number.isInteger(max)){toast('Enter whole-number selection limits');return;}
+        const options=[],rowEls=[...$('modifierOptionEditor').querySelectorAll('[data-mod-option-row]')];
+        for(const row of rowEls){
+          const n=row.querySelector('[data-mod-option-name]').value.trim();
+          const cents=moneyIn(row.querySelector('[data-mod-option-price]').value);
+          if(Number.isNaN(cents)){toast('Check the price for '+(n||'unnamed option'));return;}
+          options.push({id:row.dataset.modOptionRow,name:n,price:cents,active:row.querySelector('[data-mod-option-active]').checked});
+        }
+        const result=modifiersApi.saveGroup(state,{name,min,max,options},id);
+        if(!result.ok){toast(result.message);return;}
+        save();render();openModifierGroupsManager();toast('Modifier group saved: '+result.group.name);
+      }}
+    ]);
+  }
+  function openModifierGroupsManager(){
+    const rows=state.modifierSets.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(group=>{
+      const count=state.products.filter(p=>(p.modifierGroupIds||[]).includes(group.id)).length;
+      return `<div class="modManagerRow">
+        <div class="modManagerLabel"><strong>${e(group.name)}</strong><small>${group.options.length} options · on ${count} products</small></div>
+        <button type="button" class="secondary" data-mod-edit="${e(group.id)}">Edit</button>
+        <button type="button" class="secondary" data-mod-category="${e(group.id)}">Assign</button>
+      </div>`;
+    }).join('');
+    openModal('Manage modifier groups',
+      '<p class="favoriteManagerHelp">Edit named modifier groups for items in <strong>all product categories</strong>. Choose Assign to add or remove a group from an entire category. For one item, edit that product and select its modifier groups.</p>'+
+      (rows||'<p class="empty">No modifier groups yet. Create your first one.</p>'),[
+      {label:'Close',click:closeModal},
+      {label:'＋ Add group',kind:'primary',click:()=>openModifierGroupEditor()}
+    ]);
+  }
+  function openAssignModifierCategory(id){
+    const group=state.modifierSets.find(g=>g.id===id);
+    if(!group)return;
+    const categories=[...new Set(state.products.map(p=>p.category||'Other'))].sort((a,b)=>a.localeCompare(b));
+    openModal('Assign '+group.name,
+      `<p class="favoriteManagerHelp">Apply or remove this modifier group from every item in a category, or all items at once. Other modifier groups on those items are preserved.</p>
+      <label class="field">Product category<select id="modifierApplyCategory">
+        <option value="__all__">Every category / all products</option>
+        ${categories.map(cat=>`<option value="${e(cat)}">${e(cat)}</option>`).join('')}
+      </select></label>
+      <p class="fine">Use Assign to add this modifier group. Remove from category detaches it from those products without deleting the group itself.</p>`,[
+      {label:'Back',click:openModifierGroupsManager},
+      {label:'Remove from category',click:()=>{
+        const category=$('modifierApplyCategory').value;
+        if(!confirm('Remove "'+group.name+'" from '+(category==='__all__'?'all products':category)+'?'))return;
+        const total=modifiersApi.assignCategory(state,category,id,false);
+        save();render();openModifierGroupsManager();toast('Removed from '+total+' products');
+      }},
+      {label:'Assign group',kind:'primary',click:()=>{
+        const category=$('modifierApplyCategory').value;
+        const total=modifiersApi.assignCategory(state,category,id,true);
+        save();render();openModifierGroupsManager();toast('Assigned to '+total+' additional products');
+      }}
+    ]);
+  }
   function editProduct(id=null){const p=id?productById(id):null;openModal(p?'Edit product':'New product',`
     <label class="field">Product name<input id="productName" maxlength="100" value="${e(p?.name||'')}"></label>
     <label class="field">Category<input id="productCategory" maxlength="35" value="${e(p?.category||'Crafts')}"></label>
