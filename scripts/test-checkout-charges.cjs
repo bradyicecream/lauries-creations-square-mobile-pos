@@ -1,66 +1,85 @@
 const assert=require('node:assert/strict');
-const billing=require('../app/src/main/assets/checkout-charges.js');
-const operations=require('../app/src/main/assets/operations-model.js');
+const charges=require('../app/src/main/assets/checkout-charges.js');
+const ops=require('../app/src/main/assets/operations-model.js');
 const newSale=()=>({
  products:[{id:'gift',name:'Gift basket',category:'Crafts'}],
- cart:[{productId:'gift',name:'Gift basket',price:10000,qty:1,extras:[],flavors:[],needsReview:false}],
+ cart:[{productId:'gift',name:'Gift basket',price:10000,qty:1,needsReview:false,extras:[],flavors:[]}],
  taxPercent:7,saleId:'LC-001',paidSaleId:null
 });
-const state=newSale();
-const defaults=billing.normalize(state);
-assert.equal(defaults.gratuity.enabled,false,'Older registers default mandatory gratuity off');
-assert.equal(defaults.service.enabled,false,'Older registers default service charge off');
-let amount=billing.calculate(state);
-assert.equal(amount.sub,10000);
-assert.equal(amount.tax,700);
-assert.equal(amount.total,10700);
-assert.equal(amount.charges.length,0);
-let set=billing.saveSettings(state,{
- gratuity:{enabled:true,label:'Auto gratuity 18%',kind:'percent',value:18,taxable:false},
- service:{enabled:true,label:'Event service fee',kind:'fixed',value:350,taxable:true}
+const s=newSale();
+let settings=charges.normalize(s);
+assert.equal(s.taxPercent,0,'Old tax rates migrated to zero');
+assert.equal(settings.gratuity.label,'Gratuity','Name exactly Gratuity');
+assert.equal(settings.gratuity.enabled,false,'Previously off remains off');
+assert.equal(settings.service.enabled,false,'Previously off remains off');
+let cash=charges.calculate(s,'cash'),card=charges.calculate(s,'card');
+assert.equal(cash.tax,0);assert.equal(card.tax,0);
+assert.equal(cash.total,10000);assert.equal(card.total,10000);
+const saved=charges.saveSettings(s,{
+ gratuity:{enabled:true,label:'Automatic gratuity',kind:'percent',value:18,taxable:true},
+ service:{enabled:true,label:'Packaging charge',kind:'fixed',value:350,taxable:true}
 });
-assert.equal(set.ok,true);
-amount=billing.calculate(state);
-assert.equal(amount.sub,10000);
-assert.equal(amount.mandatoryGratuityCents,1800);
-assert.equal(amount.serviceChargeCents,350);
-assert.equal(amount.taxBaseCents,10350,'Tax only applied to taxable fixed service charge');
-assert.equal(amount.tax,725,'Tax rounds to nearest cent');
-assert.equal(amount.baseTotalCents,12875,'Item subtotal, two fees and tax combined');
-assert.equal(amount.charges[0].label,'Auto gratuity 18%');
-assert.equal(amount.charges[1].label,'Event service fee');
-assert.equal(operations.tipAmount(amount.sub,'percentage',15),1500,'Optional tip only based on original item subtotal');
-const saved=JSON.parse(JSON.stringify(state));billing.normalize(saved);
-assert.deepEqual(saved.chargeSettings,state.chargeSettings,'Mandatory fee rules survive a register backup');
-const session=operations.openCash(state,5000);assert.equal(session.ok,true);
-const cash=operations.recordSale(state,'local-cash',1500,15000);
-assert.equal(cash.ok,true);
-assert.equal(cash.row.baseTotalCents,12875);
-assert.equal(cash.row.totalCents,14375,'Required charges plus optional gratuity collected');
-assert.equal(cash.row.changeCents,625);
-assert.equal(cash.row.tipCents,1500);
-assert.equal(cash.row.mandatoryGratuityCents,1800,'Required auto-gratuity is NOT a voluntary tip');
-assert.equal(cash.row.serviceChargeCents,350);
-assert.equal(cash.row.taxCents,725);
-assert.equal(cash.row.requiredCharges.length,2);
-assert.equal(operations.expectedCash(state,session.row.id),19375,'Entire cash amount deposited including fees and voluntary tip');
-assert.equal(operations.recordSale(state,'local-cash',1500,15000).ok,false,'No duplicate sale allowed');
-state.saleId='LC-002';state.paidSaleId=null;
-assert.equal(operations.recordSale(state,'sandbox-card',1500,null,'test-payment',12875).ok,true,'Sandbox record matches base amount');
-state.saleId='LC-003';state.paidSaleId=null;
-assert.equal(operations.recordSale(state,'sandbox-card',1500,null,'test-2',10700).ok,false,'Rejects mismatched pending payment amount');
-assert.equal(state.paidSaleId,null,'Mismatch does not silently mark a sale as recorded');
-const failcases=[
- {enabled:true,label:' ',kind:'percent',value:15,taxable:false},
- {enabled:true,label:'Service',kind:'percent',value:110,taxable:false},
- {enabled:true,label:'Service',kind:'percent',value:12.345,taxable:false},
- {enabled:true,label:'Service',kind:'fixed',value:-1,taxable:false},
- {enabled:true,label:'Service',kind:'fixed',value:123.1,taxable:false}
-];
-for(const bad of failcases)assert.ok(billing.validate(bad),'Invalid charge rate must be rejected');
-assert.equal(billing.validate({enabled:true,label:'Required fee',kind:'percent',value:15.25,taxable:false}),null);
-const unverified=newSale();
-unverified.cart[0].needsReview=true;
-billing.normalize(unverified);
-assert.equal(billing.calculate(unverified).incomplete,true,'Unverified items block checkout');
-console.log('Required gratuity + service charge: rounding, taxable fees, cash, tips, Square base validation, legacy migration passed.');
+assert.equal(saved.ok,true);
+assert.equal(s.chargeSettings.gratuity.label,'Gratuity','Gratuity label fixed regardless of previous names');
+assert.ok(!Object.hasOwn(s.chargeSettings.service,'taxable'),'Tax flags removed');
+cash=charges.calculate(s,'cash');card=charges.calculate(s,'card');
+assert.equal(cash.sub,10000);
+assert.equal(cash.serviceChargeCents,350);
+assert.equal(cash.mandatoryGratuityCents,0,'Cash never includes required Gratuity');
+assert.equal(cash.total,10350);
+assert.deepEqual(cash.charges.map(x=>x.label),['Packaging charge']);
+assert.equal(card.serviceChargeCents,350);
+assert.equal(card.mandatoryGratuityCents,1800,'Card includes required Gratuity');
+assert.equal(card.total,12150,'Card and cash prices differ by Gratuity');
+assert.deepEqual(card.charges.map(x=>x.label),['Gratuity','Packaging charge']);
+assert.equal(card.charges[0].paymentMethod,'card');
+assert.equal(card.tax,0,'No tax on card payment');
+assert.equal(cash.tax,0,'No tax on cash payment');
+assert.equal(s.taxPercent,0,'Tax remains zero');
+const backup=JSON.parse(JSON.stringify(s));
+charges.normalize(backup);
+assert.equal(backup.taxPercent,0);
+assert.deepEqual(backup.chargeSettings,s.chargeSettings,'Settings persist in register JSON');
+const session=ops.openCash(s,2000);assert.ok(session.ok);
+const paidCash=ops.recordSale(s,'local-cash',0,11000);
+assert.equal(paidCash.ok,true);
+assert.equal(paidCash.row.baseTotalCents,10350);
+assert.equal(paidCash.row.totalCents,10350);
+assert.equal(paidCash.row.mandatoryGratuityCents,0,'Cash sales record no Gratuity');
+assert.equal(paidCash.row.serviceChargeCents,350);
+assert.equal(paidCash.row.taxCents,0);
+assert.equal(paidCash.row.changeCents,650);
+assert.equal(ops.expectedCash(s,session.row.id),12350);
+assert.equal(ops.recordSale(s,'local-cash',0,11000).ok,false,'Avoid duplicate cash sales');
+s.saleId='LC-002';s.paidSaleId=null;
+const paidCard=ops.recordSale(s,'sandbox-card',1500,null,'test-card',12150);
+assert.equal(paidCard.ok,true,'SDK expected base matches card fee total');
+assert.equal(paidCard.row.taxCents,0);
+assert.equal(paidCard.row.mandatoryGratuityCents,1800);
+assert.equal(paidCard.row.serviceChargeCents,350);
+assert.equal(paidCard.row.tipCents,1500,'Voluntary tip separate from mandatory Gratuity');
+assert.equal(paidCard.row.totalCents,13650);
+assert.equal(ops.expectedCash(s,session.row.id),12350,'Card sales do not affect drawer totals');
+s.saleId='LC-003';s.paidSaleId=null;
+assert.equal(ops.recordSale(s,'sandbox-card',0,null,'test-bad',10350).ok,false,
+  'Reject Sandbox callback using cash instead of card amount');
+assert.equal(s.paidSaleId,null);
+s.chargeSettings.gratuity.kind='fixed';s.chargeSettings.gratuity.value=199;
+assert.equal(charges.calculate(s,'cash').mandatoryGratuityCents,0,'Fixed Gratuity also excludes cash');
+assert.equal(charges.calculate(s,'card').mandatoryGratuityCents,199,'Fixed Gratuity applies to card');
+const legacy=newSale();
+legacy.chargeSettings={gratuity:{enabled:true,label:'Automatic gratuity',kind:'percent',value:18,taxable:true},
+ service:{enabled:true,label:'Service charge',kind:'percent',value:3,taxable:true}};
+charges.normalize(legacy);
+assert.equal(legacy.taxPercent,0);
+assert.equal(legacy.chargeSettings.gratuity.label,'Gratuity');
+assert.ok(!Object.hasOwn(legacy.chargeSettings.gratuity,'taxable'));
+assert.equal(charges.calculate(legacy,'cash').total,10300,'Cash includes service only');
+assert.equal(charges.calculate(legacy,'card').total,12100,'Card includes service and Gratuity');
+assert.equal(charges.calculate(legacy,'card').tax,0);
+assert.equal(charges.calculate(legacy,'invalid').incomplete,true,'Invalid tender types rejected');
+assert.ok(charges.validate({label:'x',kind:'percent',value:110}));
+assert.ok(charges.validate({label:'x',kind:'fixed',value:-1}));
+const unknown=newSale();unknown.cart[0].needsReview=true;
+assert.equal(charges.calculate(unknown,'cash').incomplete,true,'Price review blocks payment');
+console.log('Card-only Gratuity, separate service fee, zero tax, cash/card sale records, backups and SDK base checks passed.');

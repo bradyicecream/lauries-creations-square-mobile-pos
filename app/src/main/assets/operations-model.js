@@ -119,7 +119,7 @@
     return {ok:true,points:c.points};
   }
   function recordSale(s,method,tipCents=0,tenderedCents=null,paymentId='',expectedBaseCents=null){
-    const o=normalize(s),billing=root.LaurieCheckoutCharges.calculate(s);
+    const o=normalize(s),billing=root.LaurieCheckoutCharges.calculate(s,method==='sandbox-card'?'card':'cash');
     if(o.salesRecords.some(x=>x.saleId===s.saleId))return {ok:false,error:'This sale has already been recorded.'};
     if(!s.cart.length)return {ok:false,error:'The sale is empty.'};
     let subtotal=0;
