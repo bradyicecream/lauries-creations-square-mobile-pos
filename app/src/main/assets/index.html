@@ -7,6 +7,7 @@
 <title>Laurie's Creations · Register</title>
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="square-register.css">
+<link rel="stylesheet" href="operations.css">
 </head>
 <body>
 <header class="topbar">
@@ -70,16 +71,28 @@
         </div>
         <p id="checkoutNotice" class="notice">Verify manually entered tax and prices before taking a test payment.</p>
         <button id="checkout" type="button" class="primary full">Charge $0.00 · TEST</button>
-        <p class="fine paymentFine"><span aria-hidden="true">◈</span> Sandbox checkout uses a simulated reader. No live card payments.</p>
+        <p class="fine paymentFine"><span aria-hidden="true">◈</span> Choose tips and quick cash amounts at checkout. Card payments use Square Sandbox only; cash sales are local.</p>
       </div>
     </aside>
   </div>
   <section class="utilityPane" id="activityPanel" hidden aria-label="Transactions">
-    <h2>Activity</h2><div class="utilityCard"><h3>Square transactions</h3><p>Payment records are available in the Square Sandbox Dashboard. This version does not download Square transactions or orders into Laurie’s Creations POS.</p><p class="fine">After a Sandbox charge, return to Checkout and clear the completed sale to start a new one.</p></div>
+    <h2>Activity</h2><div class="utilityCard"><h3>Local & Sandbox sales (this device)</h3><p class="fine">Local cash sales and authorized Sandbox test payments are recorded here. These are not live Square orders.</p><div id="opsActivityList"></div></div><div class="utilityCard"><h3>Square transactions</h3><p>Payment records are available in the Square Sandbox Dashboard. This version does not download Square transactions or orders into Laurie’s Creations POS.</p><p class="fine">After a Sandbox charge, return to Checkout and clear the completed sale to start a new one.</p></div>
   </section>
   <section class="utilityPane" id="morePanel" hidden aria-label="More options">
     <h2>More</h2>
     <div class="utilityCard"><h3>Register</h3><button id="manageFromMore" type="button" class="utilityRow">⚙ &nbsp; Products, modifiers &amp; tax <span>›</span></button><button id="flavorsFromMore" type="button" class="utilityRow">🍦 &nbsp; Ice cream flavors <span>›</span></button><button id="modifierGroupsFromMore" type="button" class="utilityRow">🧩 &nbsp; Modifier groups — all categories <span>›</span></button><button id="newFromMore" type="button" class="utilityRow">＋ &nbsp; Create item <span>›</span></button><button id="favoriteGroupsFromMore" type="button" class="utilityRow">★ &nbsp; Edit Favorites tabs and groups <span>›</span></button><button id="restoreCatalog" type="button" class="utilityRow">↻ &nbsp; Restore saved item library <span>›</span></button><p class="fine">Restore items from the previous Laurie’s Creations register snapshot. This is not live Square synchronization.</p></div>
+    <div class="utilityCard"><h3>Business tools</h3><p class="fine">Device-local management tools for testing. Export a register backup from Products, modifiers &amp; tax before reinstalling.</p>
+      <button id="staffTool" type="button" class="utilityRow">👥 &nbsp; Staff &amp; time cards <span>›</span></button>
+      <button id="inventoryTool" type="button" class="utilityRow">📦 &nbsp; Inventory tracking <span>›</span></button>
+      <button id="displayTool" type="button" class="utilityRow">📺 &nbsp; Customer display preview <span>›</span></button>
+      <button id="loyaltyTool" type="button" class="utilityRow">★ &nbsp; Local loyalty test <span>›</span></button>
+      <button id="cashTool" type="button" class="utilityRow">💵 &nbsp; Cash management <span>›</span></button>
+    </div>
+    <div class="utilityCard"><h3>Square services — connection required</h3>
+      <button id="paymentLinksTool" type="button" class="utilityRow">🔗 &nbsp; Payment links <span>›</span></button>
+      <button id="bankingTool" type="button" class="utilityRow">🏦 &nbsp; Banking &amp; payouts <span>›</span></button>
+      <p class="fine">These use Square's authenticated Dashboard or APIs and are not automatically connected to this Sandbox register.</p>
+    </div>
     <div class="utilityCard"><h3>Square Sandbox</h3><p class="fine">Connection and reader tools work in the installed Android app.</p><div class="bottomActions"><button id="squareConnect" type="button" class="secondary">Connect Sandbox</button><button id="readerSettings" type="button" class="secondary">Reader settings</button></div><button id="squareDiagnostic" type="button" class="utilityRow">ⓘ &nbsp; Check Square connection status <span>›</span></button></div>
   </section>
 </main>
@@ -99,5 +112,7 @@
 <script src="favorite-groups.js"></script>
 <script src="modifier-groups.js"></script>
 <script src="register-cart.js"></script>
+<script src="operations-model.js"></script>
+<script src="operations-ui.js"></script>
 <script src="app.js"></script>
 </body></html>
