@@ -1,0 +1,16 @@
+{
+  "name": "lauries-square-oauth",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Dedicated secure Square OAuth backend for Laurie’s Creations POS",
+  "scripts": {
+    "check": "node --check netlify/functions/oauth.mjs && node --test tests/oauth.test.mjs"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^11.1.4"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
