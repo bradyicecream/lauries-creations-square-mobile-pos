@@ -27,6 +27,8 @@
   if(!Array.isArray(state.products)||!Array.isArray(state.cart)||!Array.isArray(state.flavors))state=defaultState();
   const groupsApi=window.LaurieFavoriteGroups;
   groupsApi.normalize(state); // Migrates older single Favorites lists without deleting them.
+  const modifiersApi=window.LaurieModifierGroups;
+  modifiersApi.normalize(state); // Preserves and migrates saved per-product modifier groups.
   const $=id=>document.getElementById(id);
   const format=cents=>cents===null||!Number.isSafeInteger(cents)?'PRICE NEEDED':(cents/100).toLocaleString('en-US',{style:'currency',currency:'USD'});
   const e=value=>String(value??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
@@ -113,11 +115,13 @@
     const variations=(p.variants||[]).length?`<label class="field">Variation<select id="choiceVariant">${p.variants.map(v=>`<option value="${e(v)}" ${v===chosenVariant?'selected':''}>${e(v)}${p.variantPrices&&p.variantPrices[v]!=null?' ('+format(p.variantPrices[v])+')':''}</option>`).join('')}</select></label>`:'';
     const flavorRows=Array.from({length:p.scoops||0},(_,j)=>`<label class="field">Scoop ${j+1}<select class="flavorSelect" data-scoop="${j}">${state.flavors.filter(f=>f.active||choices[j]===f.id).map(f=>`<option value="${e(f.id)}" ${choices[j]===f.id?'selected':''}>${e(f.name)}${f.price?' (+'+format(f.price)+')':''}${!f.active?' (unavailable)':''}</option>`).join('')}</select></label>`).join('');
     const extraRows=(p.extras||[]).length?`<div class="divider"></div><strong>Modifiers</strong>${p.extras.map((x,j)=>`<label class="field"><input type="checkbox" data-extra="${j}" ${extras.includes(x.name)?'checked':''}> ${e(x.name)} (+${format(x.price)})</label>`).join('')}`:'';
-    const groupRows=(p.modifierGroups||[]).map((group,j)=>{
+    const appliedGroups=modifiersApi.forProduct(state,p);
+    const groupRows=appliedGroups.map((group,j)=>{
       const limit=group.max===0?99:group.max;
       return `<div class="modifierGroup"><strong>${e(group.name)}</strong><small>${group.min>0?'Select at least '+group.min:'Optional'}${limit<99?' · Up to '+limit:''}</small><div class="modifierChoices">${(group.options||[]).map((opt,k)=>{
-        const checked=(current?.extras||[]).some(x=>x.name===opt.name && x.group===group.name);
-        return `<label><input type="checkbox" data-group="${j}" data-option="${k}" ${checked?'checked':''}><span>${e(opt.name)}${opt.price===null?' · PRICE NEEDED':' · '+format(opt.price)}</span></label>`;
+        const checked=(current?.extras||[]).some(x=>x.optionId===opt.id||(x.name===opt.name&&x.group===group.name));
+        if(opt.active===false&&!checked)return '';
+        return `<label><input type="checkbox" data-group="${j}" data-option="${k}" ${checked?'checked':''}><span>${e(opt.name)}${opt.price===null?' · PRICE NEEDED':' · '+format(opt.price)}${opt.active===false?' · unavailable (uncheck before saving)':''}</span></label>`;
       }).join('')}</div></div>`;
     }).join('');
     openModal(index===null?'Add '+p.name:'Edit cart item',variations+flavorRows+extraRows+groupRows+`<label class="field">Quantity<input id="quantity" type="number" inputmode="numeric" min="1" max="99" value="${current?.qty||1}"></label><p class="fine">Base price: ${format(p.price)}. Changes to base prices happen in Manage → Products.</p>`,[
@@ -128,13 +132,14 @@
           const selectedFlavors=[...$('dialogBody').querySelectorAll('.flavorSelect')].map(el=>el.value);
           if(selectedFlavors.some(id=>!state.flavors.find(f=>f.id===id)?.active)){toast('Choose an available flavor');return;}
           const selectedExtras=[...$('dialogBody').querySelectorAll('[data-extra]:checked')].map(el=>p.extras[Number(el.dataset.extra)]);
-          for(const [j,group] of (p.modifierGroups||[]).entries()){
+          for(const [j,group] of appliedGroups.entries()){
             const checked=[...$('dialogBody').querySelectorAll('[data-group="'+j+'"]:checked')];
             const maximum=group.max===0?99:group.max;
             if(checked.length<(group.min||0)||checked.length>maximum){toast(group.name+': select '+(group.min||0)+' to '+maximum+' options.');return;}
             const choices=checked.map(el=>group.options[Number(el.dataset.option)]);
+            if(choices.some(x=>x.active===false)){toast('This option is unavailable. Uncheck it before saving the cart item.');return;}
             if(choices.some(x=>x.price===null)){toast('A modifier price has not been verified. Update the item before checkout.');return;}
-            selectedExtras.push(...choices.map(x=>({name:x.name,price:x.price,group:group.name})));
+            selectedExtras.push(...choices.map(x=>({name:x.name,price:x.price,group:group.name,groupId:group.id,optionId:x.id})));
           }
           const selectedVariant=$('choiceVariant')?.value||'';
           const variablePrice=selectedVariant&&p.variantPrices&&Object.prototype.hasOwnProperty.call(p.variantPrices,selectedVariant)?p.variantPrices[selectedVariant]:p.price;
@@ -147,6 +152,93 @@
     ]);
     if(p.scoops&&!state.flavors.some(f=>f.active))toast('No available flavors. Add flavors in Manage.');
   }
+  function renderModifierOptionRow(option={}){
+    const id=option.id||makeId();
+    const dollars=option.price===null?'':((option.price??0)/100).toFixed(2);
+    return `<div class="modifierEditRow" data-mod-option-row="${e(id)}">
+      <label>Option name<input data-mod-option-name maxlength="80" placeholder="e.g. Purple" value="${e(option.name||'')}"></label>
+      <label>Upcharge ($)<input data-mod-option-price inputmode="decimal" placeholder="0.00" value="${e(dollars)}"></label>
+      <label class="modAvailability"><input type="checkbox" data-mod-option-active ${option.active!==false?'checked':''}><span>Available</span></label>
+      <button type="button" class="modRemove" data-mod-option-remove aria-label="Remove ${e(option.name||'modifier option')}">✕</button>
+    </div>`;
+  }
+  function openModifierGroupEditor(id=null){
+    const group=id?state.modifierSets.find(g=>g.id===id):null;
+    if(id&&!group){toast('Modifier group no longer exists');return;}
+    const rows=(group?.options||[{id:makeId(),name:'',price:0,active:true}]).map(renderModifierOptionRow).join('');
+    openModal(group?'Edit '+group.name:'New modifier group',
+      `<p class="favoriteManagerHelp">Create modifier choices and their upcharges. This same group can be used by products in any category. Changes affect future additions to the cart and do not sync to Square.</p>
+      <label class="field">Group name<input id="modGroupName" maxlength="80" placeholder="Example: Color options" value="${e(group?.name||'')}"></label>
+      <div class="modifierLimits">
+        <label class="field">Minimum choices<input id="modGroupMin" type="number" min="0" max="99" value="${group?.min??0}"></label>
+        <label class="field">Maximum choices<input id="modGroupMax" type="number" min="0" max="99" value="${group?.max??1}"></label>
+      </div>
+      <p class="fine">Maximum 0 means unlimited. A blank option price means unverified, not free. Use 0.00 for no additional charge.</p>
+      <div id="modifierOptionEditor">${rows}</div>
+      <button type="button" class="secondary modAddOption" id="modAddOption">＋ Add modifier option</button>`,[
+      ...(group?[{label:'Delete group',click:()=>{
+        if(!confirm('Delete this modifier group from all assigned items? Product names, categories and previously added cart items are not deleted.'))return;
+        modifiersApi.removeGroup(state,id);save();render();openModifierGroupsManager();toast('Modifier group deleted');
+      }}]:[]),
+      {label:'Cancel',click:openModifierGroupsManager},
+      {label:'Save group',kind:'primary',click:()=>{
+        const name=$('modGroupName').value.trim();
+        const min=Number($('modGroupMin').value),max=Number($('modGroupMax').value);
+        if(!Number.isInteger(min)||!Number.isInteger(max)){toast('Enter whole-number selection limits');return;}
+        const options=[],rowEls=[...$('modifierOptionEditor').querySelectorAll('[data-mod-option-row]')];
+        for(const row of rowEls){
+          const n=row.querySelector('[data-mod-option-name]').value.trim();
+          const cents=moneyIn(row.querySelector('[data-mod-option-price]').value);
+          if(Number.isNaN(cents)){toast('Check the price for '+(n||'unnamed option'));return;}
+          options.push({id:row.dataset.modOptionRow,name:n,price:cents,active:row.querySelector('[data-mod-option-active]').checked});
+        }
+        const result=modifiersApi.saveGroup(state,{name,min,max,options},id);
+        if(!result.ok){toast(result.message);return;}
+        save();render();openModifierGroupsManager();toast('Modifier group saved: '+result.group.name);
+      }}
+    ]);
+  }
+  function openModifierGroupsManager(){
+    const rows=state.modifierSets.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(group=>{
+      const count=state.products.filter(p=>(p.modifierGroupIds||[]).includes(group.id)).length;
+      return `<div class="modManagerRow">
+        <div class="modManagerLabel"><strong>${e(group.name)}</strong><small>${group.options.length} options · on ${count} products</small></div>
+        <button type="button" class="secondary" data-mod-edit="${e(group.id)}">Edit</button>
+        <button type="button" class="secondary" data-mod-category="${e(group.id)}">Assign</button>
+      </div>`;
+    }).join('');
+    openModal('Manage modifier groups',
+      '<p class="favoriteManagerHelp">Edit named modifier groups for items in <strong>all product categories</strong>. Choose Assign to add or remove a group from an entire category. For one item, edit that product and select its modifier groups.</p>'+
+      (rows||'<p class="empty">No modifier groups yet. Create your first one.</p>'),[
+      {label:'Close',click:closeModal},
+      {label:'＋ Add group',kind:'primary',click:()=>openModifierGroupEditor()}
+    ]);
+  }
+  function openAssignModifierCategory(id){
+    const group=state.modifierSets.find(g=>g.id===id);
+    if(!group)return;
+    const categories=[...new Set(state.products.map(p=>p.category||'Other'))].sort((a,b)=>a.localeCompare(b));
+    openModal('Assign '+group.name,
+      `<p class="favoriteManagerHelp">Apply or remove this modifier group from every item in a category, or all items at once. Other modifier groups on those items are preserved.</p>
+      <label class="field">Product category<select id="modifierApplyCategory">
+        <option value="__all__">Every category / all products</option>
+        ${categories.map(cat=>`<option value="${e(cat)}">${e(cat)}</option>`).join('')}
+      </select></label>
+      <p class="fine">Use Assign to add this modifier group. Remove from category detaches it from those products without deleting the group itself.</p>`,[
+      {label:'Back',click:openModifierGroupsManager},
+      {label:'Remove from category',click:()=>{
+        const category=$('modifierApplyCategory').value;
+        if(!confirm('Remove "'+group.name+'" from '+(category==='__all__'?'all products':category)+'?'))return;
+        const total=modifiersApi.assignCategory(state,category,id,false);
+        save();render();openModifierGroupsManager();toast('Removed from '+total+' products');
+      }},
+      {label:'Assign group',kind:'primary',click:()=>{
+        const category=$('modifierApplyCategory').value;
+        const total=modifiersApi.assignCategory(state,category,id,true);
+        save();render();openModifierGroupsManager();toast('Assigned to '+total+' additional products');
+      }}
+    ]);
+  }
   function editProduct(id=null){const p=id?productById(id):null;openModal(p?'Edit product':'New product',`
     <label class="field">Product name<input id="productName" maxlength="100" value="${e(p?.name||'')}"></label>
     <label class="field">Category<input id="productCategory" maxlength="35" value="${e(p?.category||'Crafts')}"></label>
@@ -156,8 +248,17 @@
     <label class="field">Variations (one per line)<textarea id="productVariants" rows="4" style="width:100%">${e((p?.variants||[]).join('\n'))}</textarea></label>
     <label class="field">Variation-specific prices (one per line: Variation|price in dollars)<textarea id="variationPriceLines" rows="4" style="width:100%" placeholder="Black OSU|25.00">${e((p?.variants||[]).map(v=>v+'|'+(p?.variantPrices?.[v]===null||p?.variantPrices?.[v]===undefined?'':(p.variantPrices[v]/100).toFixed(2))).join('\n'))}</textarea></label>
     <label class="field">Number of ice cream scoops (0–6)<input id="productScoops" type="number" min="0" max="6" value="${p?.scoops||0}"></label>
-    <label class="field">Modifiers (one per line: name|upcharge in dollars)<textarea id="productExtras" rows="4" style="width:100%" placeholder="Gift wrap|1.00">${e((p?.extras||[]).map(x=>x.name+'|'+(x.price/100).toFixed(2)).join('\n'))}</textarea></label>
-    <p class="fine">Only prices you enter are used for new cart items. Existing cart items keep their previous price until edited.</p>`,[
+    <label class="field">Individual modifiers (one per line: name|upcharge in dollars)<textarea id="productExtras" rows="4" style="width:100%" placeholder="Gift wrap|1.00">${e((p?.extras||[]).map(x=>x.name+'|'+(x.price/100).toFixed(2)).join('\n'))}</textarea></label>
+    <div class="divider"></div>
+    <h3 class="modProductHeading">Modifier groups for this item</h3>
+    <p class="fine">Select any reusable group below. These work on <strong>every category</strong>, and changes to a shared group update the choices shown across assigned items. To create or edit groups, choose More → Modifier groups.</p>
+    <div class="productModifierChecklist">
+      ${state.modifierSets.length?state.modifierSets.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(g=>`<label>
+        <input type="checkbox" data-product-group="${e(g.id)}" ${(p?.modifierGroupIds||[]).includes(g.id)?'checked':''}>
+        <span>${e(g.name)} <small>${g.options.length} options</small></span>
+      </label>`).join(''):'<p class="fine">No modifier groups yet. Create one in More → Modifier groups.</p>'}
+    </div>
+    <p class="fine">Updated prices and modifiers apply to future item additions. Existing cart items keep their previous choices until edited.</p>`,[
       ...(p?[{label:'Delete product',click:()=>{if(!confirm('Delete product from catalog? Items already in cart remain.'))return;state.products=state.products.filter(x=>x.id!==p.id);for(const g of state.favoriteGroups)g.productIds=g.productIds.filter(x=>x!==p.id);groupsApi.normalize(state);closeModal();render();}}]:[]),
       {label:'Cancel',click:closeModal},
       {label:'Save product',kind:'primary',click:()=>{
@@ -175,8 +276,9 @@
           if(!variants.includes(variant)||Number.isNaN(amount)){toast('Check variation name and price: '+variant);return;}
           variantPrices[variant]=amount;
         }
+        const modifierGroupIds=[...$('dialogBody').querySelectorAll('[data-product-group]:checked')].map(el=>el.dataset.productGroup);
         const value={id:p?.id||makeId(),name,category:cat,icon:$('productIcon').value.trim()||'🧵',price,variants,variantPrices,scoops,extras,
-          modifierGroups:p?.modifierGroups||[],source:p?.source||'local',reviewRequired:p?.source==='saved-snapshot'?!($('priceConfirmed')?.checked):false};
+          modifierGroups:p?.modifierGroups||[],modifierGroupIds,source:p?.source||'local',reviewRequired:p?.source==='saved-snapshot'?!($('priceConfirmed')?.checked):false};
         if(p)state.products=state.products.map(x=>x.id===id?value:x);else state.products.push(value);
         save();closeModal();render();toast('Product saved');
       }}
@@ -191,12 +293,13 @@
       {label:'Export backup',click:()=>{const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='lauries-register-backup.json';link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);toast('Backup exported');}},
       {label:'Import backup',click:()=>{$('importFile').click();}},
       {label:'Flavors',click:flavorsEditor},
+      {label:'Modifier groups',click:openModifierGroupsManager},
       {label:'Restore saved library',click:restoreSavedCatalog},
       {label:'New product',click:()=>editProduct()},
       {label:'Save tax',kind:'primary',click:()=>{const rate=Number($('taxRate').value);if(!Number.isFinite(rate)||rate<0||rate>30){toast('Enter a tax rate from 0–30%');return;}state.taxPercent=rate;save();closeModal();render();toast('Tax updated');}}
     ]);
   }
-  $('importFile').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{const src=JSON.parse(await file.text());if(!Array.isArray(src.products)||!Array.isArray(src.flavors)||!Array.isArray(src.cart))throw Error('Invalid backup');if(!confirm('Replace your current register settings and cart with this backup?'))return;state=src;groupsApi.normalize(state);state.saleId=makeId();state.paidSaleId=null;save();closeModal();render();toast('Backup restored — verify prices');}catch(_){toast('Could not import this backup');}finally{ev.target.value='';}});
+  $('importFile').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{const src=JSON.parse(await file.text());if(!Array.isArray(src.products)||!Array.isArray(src.flavors)||!Array.isArray(src.cart))throw Error('Invalid backup');if(!confirm('Replace your current register settings and cart with this backup?'))return;state=src;groupsApi.normalize(state);modifiersApi.normalize(state);state.saleId=makeId();state.paidSaleId=null;save();closeModal();render();toast('Backup restored — verify prices');}catch(_){toast('Could not import this backup');}finally{ev.target.value='';}});
   function squareState(){try{return window.LaurieSquare?.squareState?.()||'browser-preview';}catch(_){return 'unavailable';}}
   function syncSquareStatus(){const v=squareState(),text={'not-configured':'Add Sandbox app ID','unauthorized-sandbox':'Sandbox not connected','authorized-sandbox':'Sandbox connected','browser-preview':'Browser preview only','unavailable':'Square unavailable'};$('sqStatus').textContent=text[v]||v;}
   window.receiveSquareEvent=function(payload){let msg;try{msg=JSON.parse(payload);}catch(_){return;}
@@ -441,6 +544,23 @@
   $('manageFromMore').onclick=manage;
   $('flavorsFromMore').onclick=flavorsEditor;
   $('newFromMore').onclick=()=>editProduct();
+  $('modifierGroupsFromMore').onclick=openModifierGroupsManager;
+  $('dialogBody').addEventListener('click',ev=>{
+    const edit=ev.target.closest('[data-mod-edit]');if(edit){openModifierGroupEditor(edit.dataset.modEdit);return;}
+    const assign=ev.target.closest('[data-mod-category]');if(assign){openAssignModifierCategory(assign.dataset.modCategory);return;}
+    const add=ev.target.closest('#modAddOption');
+    if(add){
+      const target=$('modifierOptionEditor');
+      if(target.querySelectorAll('[data-mod-option-row]').length>=100){toast('Each group supports up to 100 options');return;}
+      target.insertAdjacentHTML('beforeend',renderModifierOptionRow({id:makeId(),name:'',price:0,active:true}));
+      const name=target.lastElementChild.querySelector('[data-mod-option-name]');name?.focus();return;
+    }
+    const remove=ev.target.closest('[data-mod-option-remove]');
+    if(remove){
+      const row=remove.closest('[data-mod-option-row]');
+      row?.remove();return;
+    }
+  });
   $('manageFavoriteTabs').onclick=openManageFavoritesTabs;
   $('favoriteGroupsFromMore').onclick=openManageFavoritesTabs;
   $('editActiveFavorites').onclick=()=>editFavoriteItems(groupsApi.active(state).id);
@@ -480,6 +600,7 @@
       state.flavors.push({...flavor});flavorNames.add(key);addedFlavors++;
     }
     state.savedCatalogVersion=savedCatalog.version;
+    modifiersApi.normalize(state); // Convert restored old inline modifier groups into editable reusable ones.
     save();closeModal();render();
     toast('Restored '+count+' missing products and '+addedFlavors+' flavors.');
     showSection('checkout');registerTab='library';catalog();
