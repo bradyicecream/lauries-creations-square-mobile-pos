@@ -45,29 +45,43 @@
   $('closeDialog').addEventListener('click',closeModal);
   $('dialogForm').addEventListener('submit',ev=>ev.preventDefault());
   function catalog(){
-    if(!Array.isArray(state.favorites))state.favorites=[];
-    const tabs={favorites:'Tap a favorite to customize and add to your sale.',keypad:'Enter a custom dollar amount.',library:'Browse or search all of your items.'};
-    $('catalogHint').textContent=tabs[registerTab];
+    const currentGroup=groupsApi.active(state);
+    const tabBar=$('registerTabs');
+    const previousScroll=tabBar.scrollLeft;
+    const names=state.favoriteGroups.map(g=>{
+      const selected=registerTab==='favorites'&&currentGroup.id===g.id;
+      return `<button type="button" data-group-id="${e(g.id)}" class="${selected?'active':''}" aria-selected="${selected}" title="${e(g.name)}">★ ${e(g.name)}</button>`;
+    }).join('');
+    tabBar.innerHTML=names+
+      `<button type="button" class="newGroupTab" data-create-favorite-group="true" title="Create new Favorites tab">＋ Tab</button>`+
+      `<button type="button" data-register-tab="keypad" class="${registerTab==='keypad'?'active':''}" aria-selected="${registerTab==='keypad'}">▤ Keypad</button>`+
+      `<button type="button" data-register-tab="library" class="${registerTab==='library'?'active':''}" aria-selected="${registerTab==='library'}">☰ Library</button>`;
+    tabBar.scrollLeft=previousScroll;
+    const selectedGroupName=currentGroup.name;
+    $('favoritesToolbar').hidden=registerTab!=='favorites';
+    $('currentFavoriteName').textContent=selectedGroupName;
+    $('libraryFavoritesTarget').hidden=registerTab!=='library';
+    $('libraryFavoriteGroupName').textContent='★ Adding to: '+selectedGroupName;
+    const tabHint=registerTab==='favorites'
+      ?'Tap an item to add it to the sale. Edit Items changes this tab, not your Square catalog.'
+      :registerTab==='keypad'?'Enter a custom dollar amount.'
+      :'Browse all your items. ★ adds an item to the selected Favorites tab.';
+    $('catalogHint').textContent=tabHint;
     $('searchWrap').hidden=registerTab!=='library';
     $('categories').hidden=registerTab!=='library';
     $('productGrid').hidden=registerTab==='keypad';
     $('keypadPanel').hidden=registerTab!=='keypad';
-    for(const b of $('registerTabs').querySelectorAll('[data-register-tab]')){
-      const selected=b.dataset.registerTab===registerTab;
-      b.classList.toggle('active',selected);
-      b.setAttribute('aria-selected',String(selected));
-    }
     const cats=['All',...new Set(state.products.map(x=>x.category||'Other'))];
     if(!cats.includes(category))category='All';
     $('categories').innerHTML=cats.map(x=>`<button class="chip ${x===category?'active':''}" data-cat="${e(x)}">${e(x)}</button>`).join('');
-    let products=state.products.filter(p=>{
-      if(registerTab==='favorites')return state.favorites.includes(p.id);
-      if(registerTab==='library'){
-        const q=searchText.toLowerCase().trim();
-        return (category==='All'||p.category===category)&&(!q||[p.name,p.category,...(p.variants||[])].join(' ').toLowerCase().includes(q));
-      }
-      return false;
-    });
+    let products=[];
+    if(registerTab==='favorites'){
+      products=currentGroup.productIds.map(id=>state.products.find(p=>p.id===id)).filter(Boolean);
+    }else if(registerTab==='library'){
+      const q=searchText.toLowerCase().trim();
+      products=state.products.filter(p=>(category==='All'||p.category===category)
+        &&(!q||[p.name,p.category,...(p.variants||[])].join(' ').toLowerCase().includes(q)));
+    }
     $('productGrid').innerHTML=products.length?products.map(p=>`
       <div class="productTile">
         <button class="product" type="button" data-product="${e(p.id)}" aria-label="Add ${e(p.name)}">
@@ -75,8 +89,9 @@
           <span class="name">${e(p.name)}</span>
           <span class="${p.price===null?'unverified':'price'}">${format(p.price)}${p.scoops?' · '+p.scoops+' scoop'+(p.scoops>1?'s':''):''}</span>
         </button>
-        ${registerTab==='library'? `<button type="button" class="favoriteToggle ${state.favorites.includes(p.id)?'active':''}" data-favorite="${e(p.id)}" aria-label="${state.favorites.includes(p.id)?'Remove from':'Add to'} Favorites" aria-pressed="${state.favorites.includes(p.id)}">${state.favorites.includes(p.id)?'★':'☆'}</button>`:''}
-      </div>`).join(''):'<p class="empty">No items here yet. Open Library to add favorites.</p>';
+        ${registerTab==='library'?`<button type="button" class="favoriteToggle ${currentGroup.productIds.includes(p.id)?'active':''}" data-favorite="${e(p.id)}" aria-label="${currentGroup.productIds.includes(p.id)?'Remove from':'Add to'} ${e(currentGroup.name)}" aria-pressed="${currentGroup.productIds.includes(p.id)}">${currentGroup.productIds.includes(p.id)?'★':'☆'}</button>`:''}
+      </div>`).join(''):registerTab!=='keypad'
+        ?'<p class="empty">No items in this tab yet. Tap Edit items or open Library to add favorites.</p>':'';
     $('keypadAmount').textContent=format(Number(amountDigits||'0'));
     $('addCustomAmount').disabled=!Number(amountDigits||0)||Number(amountDigits)>1000000;
   }
