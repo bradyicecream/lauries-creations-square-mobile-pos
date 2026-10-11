@@ -63,7 +63,7 @@
   </section>
   <section class="utilityPane" id="morePanel" hidden aria-label="More options">
     <h2>More</h2>
-    <div class="utilityCard"><h3>Register</h3><button id="manageFromMore" type="button" class="utilityRow">⚙ &nbsp; Products, modifiers &amp; tax <span>›</span></button><button id="flavorsFromMore" type="button" class="utilityRow">🍦 &nbsp; Ice cream flavors <span>›</span></button><button id="newFromMore" type="button" class="utilityRow">＋ &nbsp; Create item <span>›</span></button></div>
+    <div class="utilityCard"><h3>Register</h3><button id="manageFromMore" type="button" class="utilityRow">⚙ &nbsp; Products, modifiers &amp; tax <span>›</span></button><button id="flavorsFromMore" type="button" class="utilityRow">🍦 &nbsp; Ice cream flavors <span>›</span></button><button id="newFromMore" type="button" class="utilityRow">＋ &nbsp; Create item <span>›</span></button><button id="restoreCatalog" type="button" class="utilityRow">↻ &nbsp; Restore saved item library <span>›</span></button><p class="fine">Restore items from the previous Laurie’s Creations register snapshot. This is not live Square synchronization.</p></div>
     <div class="utilityCard"><h3>Square Sandbox</h3><p class="fine">Connection and reader tools work in the installed Android app.</p><div class="bottomActions"><button id="squareConnect" type="button" class="secondary">Connect Sandbox</button><button id="readerSettings" type="button" class="secondary">Reader settings</button></div></div>
   </section>
 </main>
@@ -77,5 +77,6 @@
 <dialog id="dialog"><form method="dialog" id="dialogForm"><div class="dialogTop"><h2 id="dialogTitle">Edit</h2><button type="button" id="closeDialog" class="iconButton" aria-label="Close">✕</button></div><div id="dialogBody"></div><div id="dialogActions" class="dialogActions"></div></form></dialog>
 <input type="file" id="importFile" accept="application/json" hidden>
 <div id="toast" role="status" aria-live="polite"></div>
+<script src="saved-catalog.js"></script>
 <script src="app.js"></script>
 </body></html>
