@@ -45,6 +45,11 @@
   $('closeDialog').addEventListener('click',closeModal);
   $('dialogForm').addEventListener('submit',ev=>ev.preventDefault());
   function catalog(){
+    // If a utility view is hidden while active, return safely to Favorites.
+    if((registerTab==='keypad'&&!groupsApi.isUtilityTabVisible(state,'keypad'))||
+       (registerTab==='library'&&!groupsApi.isUtilityTabVisible(state,'library'))){
+      registerTab='favorites';
+    }
     const currentGroup=groupsApi.active(state);
     const tabBar=$('registerTabs');
     const previousScroll=tabBar.scrollLeft;
@@ -54,8 +59,10 @@
     }).join('');
     tabBar.innerHTML=names+
       `<button type="button" class="newGroupTab" data-create-favorite-group="true" title="Create new Favorites tab">＋ Tab</button>`+
-      `<button type="button" data-register-tab="keypad" class="${registerTab==='keypad'?'active':''}" aria-selected="${registerTab==='keypad'}">▤ Keypad</button>`+
-      `<button type="button" data-register-tab="library" class="${registerTab==='library'?'active':''}" aria-selected="${registerTab==='library'}">☰ Library</button>`;
+      (groupsApi.isUtilityTabVisible(state,'keypad')
+        ?`<button type="button" data-register-tab="keypad" class="${registerTab==='keypad'?'active':''}" aria-selected="${registerTab==='keypad'}">▤ Keypad</button>`:'')+
+      (groupsApi.isUtilityTabVisible(state,'library')
+        ?`<button type="button" data-register-tab="library" class="${registerTab==='library'?'active':''}" aria-selected="${registerTab==='library'}">☰ Library</button>`:'');
     tabBar.scrollLeft=previousScroll;
     const selectedGroupName=currentGroup.name;
     $('favoritesToolbar').hidden=registerTab!=='favorites';
@@ -313,8 +320,15 @@
           <button type="button" data-fav-action="delete" data-fav-id="${e(group.id)}" ${groups.length===1?'disabled':''}>Delete</button>
         </div>
       </div>`).join('');
+    const vis=groupsApi.normalizeTabVisibility(state);
+    const options=`<div class="utilityTabSettings">
+      <strong>Optional checkout tabs</strong>
+      <p class="favoriteManagerHelp">Show or hide these tabs individually. Both can be hidden. Favorites stay available, and hiding a tab never deletes any products or changes your cart.</p>
+      <label class="utilityTabToggle"><input type="checkbox" data-utility-tab="keypad" ${vis.keypad?'checked':''}><span>Show Keypad<small>Custom amount entry</small></span></label>
+      <label class="utilityTabToggle"><input type="checkbox" data-utility-tab="library" ${vis.library?'checked':''}><span>Show Library<small>Browse and search all products</small></span></label>
+    </div>`;
     openModal('Edit Favorites tabs',
-      '<p class="favoriteManagerHelp">Add your own tab names and groups. Use ← → to change the order. Deleting a tab never deletes your actual products.</p>'+rows,[
+      '<p class="favoriteManagerHelp">Add your own tab names and groups. Use ← → to change the order. Deleting a tab never deletes your actual products.</p>'+options+rows,[
       {label:'Done',click:closeModal},
       {label:'＋ New tab',kind:'primary',click:openCreateFavoritesTab}
     ]);
@@ -434,6 +448,17 @@
   $('dialogBody').addEventListener('click',ev=>{
     const button=ev.target.closest('[data-fav-action]');
     if(button)handleFavoriteManagerAction(button);
+  });
+  $('dialogBody').addEventListener('change',ev=>{
+    const toggle=ev.target.closest('[data-utility-tab]');
+    if(!toggle)return;
+    const which=toggle.dataset.utilityTab;
+    if(groupsApi.setUtilityTabVisible(state,which,toggle.checked)){
+      // Switching off the currently shown utility tab returns to Favorites.
+      if(!toggle.checked&&registerTab===which)registerTab='favorites';
+      save();catalog();
+      toast((toggle.checked?'Showing ':'Hiding ')+(which==='keypad'?'Keypad':'Library')+' tab');
+    }
   });
 
   function restoreSavedCatalog(){
