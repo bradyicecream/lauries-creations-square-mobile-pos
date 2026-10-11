@@ -112,8 +112,7 @@ async function callback(req,url){
   if(!code||code.length>200)return html('Missing authorization code','<p>Square did not send a valid code.</p>',400,headers);
   try{
     const token=await squareTokenRequest({client_id:setting('SQUARE_APPLICATION_ID'),
-      client_secret:setting('SQUARE_APPLICATION_SECRET'),code,grant_type:'authorization_code',
-      redirect_uri:setting('SQUARE_REDIRECT_URI')});
+      client_secret:setting('SQUARE_APPLICATION_SECRET'),code,grant_type:'authorization_code'});
     const expected=setting('SQUARE_EXPECTED_MERCHANT_ID');
     if(expected && token.merchant_id!==expected)throw new Error('Unexpected merchant account');
     // Overwrites only this dedicated site's single encrypted seller record.
