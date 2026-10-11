@@ -137,15 +137,20 @@
       </div>
     </div>`).join('') :`<div class="cartEmpty"><span aria-hidden="true" class="cartEmptyIcon">▣</span><strong>Start a new sale</strong><small>Tap an item to add it to your order.</small></div>`;
     $('subtotal').textContent=format(a.sub);
-    $('tax').textContent=format(a.tax);
     $('total').textContent=format(a.total);
-    $('taxCaption').textContent=`(${Number(state.taxPercent)||0}%)`;
-    for(const [key,lineId,labelId,amountId] of [
-      ['gratuity','automaticGratuityLine','automaticGratuityLabel','automaticGratuityAmount'],
-      ['service','serviceChargeLine','serviceChargeLabel','serviceChargeAmount']]){
-      const charge=a.charges.find(c=>c.key===key);
-      $(lineId).hidden=!charge;
-      if(charge){$(labelId).textContent=charge.label+' (required)';$(amountId).textContent=format(charge.amountCents);}
+    const card=chargesApi.calculate(state,'card');
+    const cardGratuity=card.charges.find(c=>c.key==='gratuity');
+    $('cardGratuityPreview').hidden=!cardGratuity;
+    $('cashTotalLabel').textContent=cardGratuity?'Cash total':'Total';
+    if(cardGratuity){
+      $('automaticGratuityAmount').textContent=format(cardGratuity.amountCents);
+      $('cardTotalAmount').textContent=format(card.total);
+    }
+    const service=a.charges.find(c=>c.key==='service');
+    $('serviceChargeLine').hidden=!service;
+    if(service){
+      $('serviceChargeLabel').textContent=service.label+' (required)';
+      $('serviceChargeAmount').textContent=format(service.amountCents);
     }
     const paid=state.paidSaleId===state.saleId;
     $('checkout').disabled=!state.cart.length||a.incomplete||paid||a.total<=0||Boolean(state.pendingSquare);
@@ -153,8 +158,9 @@
     $('checkoutNotice').textContent=paid?'Test sale completed; do not charge the same sale again.':
       state.pendingSquare?'Sandbox payment in progress. Do not edit or re-charge this sale until Square returns a result.':
       a.incomplete?'One or more item prices or charge settings require review. Edit them in More.':
-      a.charges.length?'Required charges are included in this total. Review tax treatment, amounts and Square location before checkout.':
-      'Tax is set manually. Verify tax, modifiers, total, and Square location before checkout.';
+      cardGratuity?'Gratuity is charged only on Square Sandbox card payments, not cash. No sales tax is calculated.':
+      a.charges.length?'Required service charge included. No sales tax is calculated.':
+      'No sales tax is calculated. Verify prices, payment method, and Square location before checkout.';
     $('cartItemCount').textContent=state.cart.reduce((n,x)=>n+(x.qty||1),0)+' items';
     const note=typeof state.saleNote==='string'?state.saleNote:'';
     $('saleNoteLabel').textContent=note?'Edit sale note':'Add sale note';
@@ -379,19 +385,20 @@
       const shown=rule.kind==='fixed'?(rule.value/100).toFixed(2):String(rule.value);
       return `<div class="chargeSettingsGroup">
         <h3>${e(title)}</h3><p class="fine">${e(explanation)}</p>
-        <label class="chargeSwitch"><input type="checkbox" data-charge-enabled="${key}" ${rule.enabled?'checked':''}><span>Apply automatically to every sale</span></label>
-        <label class="field">Name shown on receipt/checkout<input data-charge-label="${key}" maxlength="70" value="${e(rule.label)}"></label>
+        <label class="chargeSwitch"><input type="checkbox" data-charge-enabled="${key}" ${rule.enabled?'checked':''}><span>${key==='gratuity'?'Apply only to card payments':'Apply to cash and card payments'}</span></label>
+        ${key==='gratuity'?'<p class="fine">Displayed name is fixed to <strong>Gratuity</strong>.</p>':
+          `<label class="field">Name shown at checkout<input data-charge-label="${key}" maxlength="70" value="${e(rule.label)}"></label>`}
         <div class="chargeSettingsControls"><label class="field">Charge type<select data-charge-kind="${key}">
           <option value="percent" ${rule.kind==='percent'?'selected':''}>Percentage (%)</option>
           <option value="fixed" ${rule.kind==='fixed'?'selected':''}>Fixed dollars ($)</option>
         </select></label><label class="field">Rate or amount<input data-charge-value="${key}" inputmode="decimal" value="${e(shown)}"></label></div>
-        <label class="chargeSwitch"><input type="checkbox" data-charge-taxable="${key}" ${rule.taxable?'checked':''}><span>Include this charge in the manually calculated taxable amount</span></label>
+
       </div>`;
     };
-    openModal('Automatic gratuity & service charges',
-      '<p class="opsWarning">These are <strong>required charges</strong>, not voluntary tips. Both are off by default. They apply to the pre-tax item subtotal (not to each other) and appear separately before payment. Tax treatment depends on your jurisdiction; confirm taxable settings before enabling.</p>'+
-      row('gratuity','Automatic gratuity','A required gratuity is a mandatory service charge for federal tip reporting, even if it is distributed to staff.')+
-      row('service','Service charge','An additional mandatory service or handling charge. This amount is not a Square card surcharge.')+
+    openModal('Gratuity & service charge',
+      '<p class="opsWarning">No sales tax is calculated in this register. <strong>Gratuity is a required card-only charge</strong> and never applies to cash sales. The separate service charge applies to both payment types. Confirm legal and card-network restrictions before using any required card-only fee for live payments.</p>'+
+      row('gratuity','Gratuity','This mandatory card-only amount is not a voluntary tip and is separate from any optional additional tip.')+
+      row('service','Service charge','Optional required service or handling amount added to both cash and card checkouts when enabled.')+
       '<p class="fine">These settings remain local to this register, do not create Square Order service-charge objects, and will affect the current sale when saved.</p>',[
         {label:'Cancel',click:closeModal},
         {label:'Save required charges',kind:'primary',click:()=>{
@@ -402,9 +409,8 @@
             const value=kind==='fixed'?moneyIn(raw):raw===''?NaN:Number(raw);
             next[key]={
               enabled:$('dialogBody').querySelector('[data-charge-enabled="'+key+'"]').checked,
-              label:$('dialogBody').querySelector('[data-charge-label="'+key+'"]').value,
-              kind,value,
-              taxable:$('dialogBody').querySelector('[data-charge-taxable="'+key+'"]').checked
+              label:key==='gratuity'?'Gratuity':$('dialogBody').querySelector('[data-charge-label="'+key+'"]').value,
+              kind,value
             };
           }
           const result=chargesApi.saveSettings(state,next);
@@ -421,7 +427,7 @@
       };
     });
   }
-  function manage(){openModal('Manage register',`<p>Update products, prices, flavors and tax. Your changes stay on this device only.</p><p class="fine">Pricing imported from an older register is NOT automatic. Verify against the Square catalog before accepting any payment.</p><label class="field">Manual sales tax rate (%)<input id="taxRate" type="number" min="0" max="30" step="0.01" value="${e(state.taxPercent)}"></label><div class="divider"></div><div style="display:flex;gap:7px;flex-wrap:wrap" id="manageProducts">${state.products.map(p=>`<button class="mini" type="button" data-manage-product="${e(p.id)}">${e(p.name)} · ${format(p.price)}</button>`).join('')}</div>`,[
+  function manage(){openModal('Manage register',`<p>Update products, prices, modifiers and flavors. Sales tax calculation is disabled.</p><p class="fine">Pricing imported from an older register is NOT automatic. Verify against the Square catalog before accepting any payment.</p><div class="divider"></div><div style="display:flex;gap:7px;flex-wrap:wrap" id="manageProducts">${state.products.map(p=>`<button class="mini" type="button" data-manage-product="${e(p.id)}">${e(p.name)} · ${format(p.price)}</button>`).join('')}</div>`,[
       {label:'Export backup',click:()=>{const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='lauries-register-backup.json';link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);toast('Backup exported');}},
       {label:'Import backup',click:()=>{$('importFile').click();}},
       {label:'Flavors',click:flavorsEditor},
@@ -429,10 +435,10 @@
       {label:'Required charges',click:openChargeSettings},
       {label:'Restore saved library',click:restoreSavedCatalog},
       {label:'New product',click:()=>editProduct()},
-      {label:'Save tax',kind:'primary',click:()=>{if(state.pendingSquare){toast('Wait for Square payment result.');return;}const rate=Number($('taxRate').value);if(!Number.isFinite(rate)||rate<0||rate>30){toast('Enter a tax rate from 0–30%');return;}state.taxPercent=rate;save();closeModal();render();toast('Tax updated');}}
-    ]);
+      {label:'Done',kind:'primary',click:closeModal}
+]);
   }
-  $('importFile').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{const src=JSON.parse(await file.text());if(!Array.isArray(src.products)||!Array.isArray(src.flavors)||!Array.isArray(src.cart))throw Error('Invalid backup');if(!confirm('Replace your current register settings and cart with this backup?'))return;state=src;groupsApi.normalize(state);modifiersApi.normalize(state);operationsApi.normalize(state);chargesApi.normalize(state);initOperationsUI();state.saleId=makeId();state.paidSaleId=null;state.pendingSquare=null;save();closeModal();render();toast('Backup restored — verify prices');}catch(_){toast('Could not import this backup');}finally{ev.target.value='';}});
+  $('importFile').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{const src=JSON.parse(await file.text());if(!Array.isArray(src.products)||!Array.isArray(src.flavors)||!Array.isArray(src.cart))throw Error('Invalid backup');if(!confirm('Replace your current register settings and cart with this backup?'))return;state=src;groupsApi.normalize(state);modifiersApi.normalize(state);operationsApi.normalize(state);chargesApi.normalize(state);state.taxPercent=0;initOperationsUI();state.saleId=makeId();state.paidSaleId=null;state.pendingSquare=null;save();closeModal();render();toast('Backup restored — verify prices');}catch(_){toast('Could not import this backup');}finally{ev.target.value='';}});
   function squareState(){try{return window.LaurieSquare?.squareState?.()||'browser-preview';}catch(_){return 'unavailable';}}
   function syncSquareStatus(){const v=squareState(),text={'not-configured':'Add Sandbox app ID','unauthorized-sandbox':'Sandbox not connected','authorized-sandbox':'Sandbox connected','browser-preview':'Browser preview only','unavailable':'Square unavailable'};$('sqStatus').textContent=text[v]||v;}
   window.receiveSquareEvent=function(payload){let msg;try{msg=JSON.parse(payload);}catch(_){return;}
