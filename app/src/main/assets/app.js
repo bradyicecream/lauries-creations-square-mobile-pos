@@ -132,6 +132,7 @@
         return !q||[title,p?.category].filter(Boolean).join(' ').toLowerCase().includes(q);
       });
       const placeholders=q&&!gridEditMode?0:Math.max(0,Math.min((window.innerWidth<500?6:20)-matching.length,window.innerWidth<500?2:12));
+      $('productGrid').classList.remove('libraryListView');
       $('productGrid').classList.add('squareTileGrid');
       $('productGrid').setAttribute('aria-label',currentGroup.name+' tile grid');
       $('productGrid').innerHTML=matching.map(tile=>renderSquareTile(tile,currentGroup)).join('')+
@@ -143,6 +144,7 @@
       const products=state.products.filter(p=>(category==='All'||p.category===category)&&
         (!q||[p.name,p.category,...(p.variants||[])].join(' ').toLowerCase().includes(q)));
       $('productGrid').classList.remove('squareTileGrid');
+      $('productGrid').classList.add('libraryListView');
       $('productGrid').setAttribute('aria-label','Item Library');
       $('productGrid').innerHTML=products.length?products.map(p=>`<div class="productTile">
         <button class="product" type="button" data-product="${e(p.id)}" aria-label="Add ${e(p.name)}">
