@@ -151,7 +151,7 @@
     <label class="field">Number of ice cream scoops (0–6)<input id="productScoops" type="number" min="0" max="6" value="${p?.scoops||0}"></label>
     <label class="field">Modifiers (one per line: name|upcharge in dollars)<textarea id="productExtras" rows="4" style="width:100%" placeholder="Gift wrap|1.00">${e((p?.extras||[]).map(x=>x.name+'|'+(x.price/100).toFixed(2)).join('\n'))}</textarea></label>
     <p class="fine">Only prices you enter are used for new cart items. Existing cart items keep their previous price until edited.</p>`,[
-      ...(p?[{label:'Delete product',click:()=>{if(!confirm('Delete product from catalog? Items already in cart remain.'))return;state.products=state.products.filter(x=>x.id!==p.id);closeModal();render();}}]:[]),
+      ...(p?[{label:'Delete product',click:()=>{if(!confirm('Delete product from catalog? Items already in cart remain.'))return;state.products=state.products.filter(x=>x.id!==p.id);for(const g of state.favoriteGroups)g.productIds=g.productIds.filter(x=>x!==p.id);groupsApi.normalize(state);closeModal();render();}}]:[]),
       {label:'Cancel',click:closeModal},
       {label:'Save product',kind:'primary',click:()=>{
         const name=$('productName').value.trim(),cat=$('productCategory').value.trim(),price=moneyIn($('productPrice').value),scoops=Number($('productScoops').value);
@@ -189,7 +189,7 @@
       {label:'Save tax',kind:'primary',click:()=>{const rate=Number($('taxRate').value);if(!Number.isFinite(rate)||rate<0||rate>30){toast('Enter a tax rate from 0–30%');return;}state.taxPercent=rate;save();closeModal();render();toast('Tax updated');}}
     ]);
   }
-  $('importFile').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{const src=JSON.parse(await file.text());if(!Array.isArray(src.products)||!Array.isArray(src.flavors)||!Array.isArray(src.cart))throw Error('Invalid backup');if(!confirm('Replace your current register settings and cart with this backup?'))return;state=src;state.saleId=makeId();state.paidSaleId=null;save();closeModal();render();toast('Backup restored — verify prices');}catch(_){toast('Could not import this backup');}finally{ev.target.value='';}});
+  $('importFile').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{const src=JSON.parse(await file.text());if(!Array.isArray(src.products)||!Array.isArray(src.flavors)||!Array.isArray(src.cart))throw Error('Invalid backup');if(!confirm('Replace your current register settings and cart with this backup?'))return;state=src;groupsApi.normalize(state);state.saleId=makeId();state.paidSaleId=null;save();closeModal();render();toast('Backup restored — verify prices');}catch(_){toast('Could not import this backup');}finally{ev.target.value='';}});
   function squareState(){try{return window.LaurieSquare?.squareState?.()||'browser-preview';}catch(_){return 'unavailable';}}
   function syncSquareStatus(){const v=squareState(),text={'not-configured':'Add Sandbox app ID','unauthorized-sandbox':'Sandbox not connected','authorized-sandbox':'Sandbox connected','browser-preview':'Browser preview only','unavailable':'Square unavailable'};$('sqStatus').textContent=text[v]||v;}
   window.receiveSquareEvent=function(payload){let msg;try{msg=JSON.parse(payload);}catch(_){return;}
@@ -403,16 +403,23 @@
     }
   }
   $('registerTabs').addEventListener('click',ev=>{
-    const btn=ev.target.closest('[data-register-tab]');if(!btn)return;
-    registerTab=btn.dataset.registerTab;catalog();
+    const create=ev.target.closest('[data-create-favorite-group]');
+    if(create){openCreateFavoritesTab();return;}
+    const groupButton=ev.target.closest('[data-group-id]');
+    if(groupButton){
+      state.activeFavoriteGroupId=groupButton.dataset.groupId;
+      registerTab='favorites';save();catalog();return;
+    }
+    const btn=ev.target.closest('[data-register-tab]');
+    if(btn){registerTab=btn.dataset.registerTab;catalog();}
   });
   $('itemSearch').addEventListener('input',ev=>{searchText=ev.target.value;catalog();});
   $('productGrid').addEventListener('click',ev=>{
     const favorite=ev.target.closest('[data-favorite]');if(!favorite)return;
     const id=favorite.dataset.favorite;
-    if(state.favorites.includes(id))state.favorites=state.favorites.filter(x=>x!==id);
-    else state.favorites.push(id);
-    save();catalog();toast('Favorites updated');
+    const group=groupsApi.active(state);
+    const added=groupsApi.toggleProduct(state,group.id,id);
+    save();catalog();toast((added?'Added to ':'Removed from ')+group.name);
   });
   $('bottomNav').addEventListener('click',ev=>{
     const b=ev.target.closest('[data-nav]');if(b)showSection(b.dataset.nav);
@@ -420,6 +427,14 @@
   $('manageFromMore').onclick=manage;
   $('flavorsFromMore').onclick=flavorsEditor;
   $('newFromMore').onclick=()=>editProduct();
+  $('manageFavoriteTabs').onclick=openManageFavoritesTabs;
+  $('favoriteGroupsFromMore').onclick=openManageFavoritesTabs;
+  $('editActiveFavorites').onclick=()=>editFavoriteItems(groupsApi.active(state).id);
+  $('chooseFavoriteGroup').onclick=chooseFavoriteGroup;
+  $('dialogBody').addEventListener('click',ev=>{
+    const button=ev.target.closest('[data-fav-action]');
+    if(button)handleFavoriteManagerAction(button);
+  });
 
   function restoreSavedCatalog(){
     const incoming=Array.isArray(savedCatalog.products)?savedCatalog.products:[];
