@@ -26,20 +26,60 @@
   function save(){localStorage.setItem(KEY,JSON.stringify(state));}
   function toast(msg){const t=$('toast');t.textContent=msg;t.style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.style.display='none',3800);}
   let category='All';
+  let registerTab='favorites';
+  let activeNav='checkout';
+  let searchText='';
+  let amountDigits='';
+  if(!Array.isArray(state.favorites))state.favorites=['tumbler','autism','halloween','ice1','ice2'];
   let modalSave=()=>{};
   function openModal(title,body,buttons){$('dialogTitle').textContent=title;$('dialogBody').innerHTML=body;$('dialogActions').innerHTML='';for(const b of buttons){const bt=document.createElement('button');bt.type='button';bt.className=b.kind||'secondary';bt.textContent=b.label;bt.addEventListener('click',b.click);$('dialogActions').appendChild(bt);}if(!$('dialog').open)$('dialog').showModal();}
   function closeModal(){$('dialog').close();}
   $('closeDialog').addEventListener('click',closeModal);
   $('dialogForm').addEventListener('submit',ev=>ev.preventDefault());
-  function catalog(){const cats=['All',...new Set(state.products.map(x=>x.category||'Other'))];if(!cats.includes(category))category='All';$('categories').innerHTML=cats.map(x=>`<button class="chip ${x===category?'active':''}" data-cat="${e(x)}">${e(x)}</button>`).join('');$('productGrid').innerHTML=state.products.filter(p=>category==='All'||p.category===category).map(p=>`<button class="product" data-product="${e(p.id)}"><span class="emoji">${e(p.icon||'🧵')}</span><span class="name">${e(p.name)}</span><span class="${p.price===null?'unverified':'price'}">${format(p.price)}${p.scoops?' · '+p.scoops+' scoop'+(p.scoops>1?'s':''):''}</span></button>`).join('');}
+  function catalog(){
+    if(!Array.isArray(state.favorites))state.favorites=[];
+    const tabs={favorites:'Tap a favorite to customize and add to your sale.',keypad:'Enter a custom dollar amount.',library:'Browse or search all of your items.'};
+    $('catalogHint').textContent=tabs[registerTab];
+    $('searchWrap').hidden=registerTab!=='library';
+    $('categories').hidden=registerTab!=='library';
+    $('productGrid').hidden=registerTab==='keypad';
+    $('keypadPanel').hidden=registerTab!=='keypad';
+    for(const b of $('registerTabs').querySelectorAll('[data-register-tab]')){
+      const selected=b.dataset.registerTab===registerTab;
+      b.classList.toggle('active',selected);
+      b.setAttribute('aria-selected',String(selected));
+    }
+    const cats=['All',...new Set(state.products.map(x=>x.category||'Other'))];
+    if(!cats.includes(category))category='All';
+    $('categories').innerHTML=cats.map(x=>`<button class="chip ${x===category?'active':''}" data-cat="${e(x)}">${e(x)}</button>`).join('');
+    let products=state.products.filter(p=>{
+      if(registerTab==='favorites')return state.favorites.includes(p.id);
+      if(registerTab==='library'){
+        const q=searchText.toLowerCase().trim();
+        return (category==='All'||p.category===category)&&(!q||[p.name,p.category,...(p.variants||[])].join(' ').toLowerCase().includes(q));
+      }
+      return false;
+    });
+    $('productGrid').innerHTML=products.length?products.map(p=>`
+      <div class="productTile">
+        <button class="product" type="button" data-product="${e(p.id)}" aria-label="Add ${e(p.name)}">
+          <span class="emoji" aria-hidden="true">${e(p.icon||'🧵')}</span>
+          <span class="name">${e(p.name)}</span>
+          <span class="${p.price===null?'unverified':'price'}">${format(p.price)}${p.scoops?' · '+p.scoops+' scoop'+(p.scoops>1?'s':''):''}</span>
+        </button>
+        ${registerTab==='library'? `<button type="button" class="favoriteToggle ${state.favorites.includes(p.id)?'active':''}" data-favorite="${e(p.id)}" aria-label="${state.favorites.includes(p.id)?'Remove from':'Add to'} Favorites" aria-pressed="${state.favorites.includes(p.id)}">${state.favorites.includes(p.id)?'★':'☆'}</button>`:''}
+      </div>`).join(''):'<p class="empty">No items here yet. Open Library to add favorites.</p>';
+    $('keypadAmount').textContent=format(Number(amountDigits||'0'));
+    $('addCustomAmount').disabled=!Number(amountDigits||0)||Number(amountDigits)>1000000;
+  }
   function lineTotal(item){if(item.price===null||!Number.isSafeInteger(item.price))return null;return item.price*(item.qty||1);}
   function amounts(){const incomplete=state.cart.some(x=>lineTotal(x)===null);const sub=state.cart.reduce((sum,x)=>sum+(lineTotal(x)||0),0);const percent=Number(state.taxPercent)||0;const tax=Math.round(sub*percent/100);return {sub,tax,total:sub+tax,incomplete};}
-  function renderCart(){const a=amounts();$('cartList').innerHTML=state.cart.length?state.cart.map((x,i)=>`<div class="cartitem"><div class="itemText"><strong>${e(x.qty)}× ${e(x.name)}</strong><small>${[x.variant||'',...(x.flavors||[]).map(id=>state.flavors.find(f=>f.id===id)?.name||'Removed flavor'),...(x.extras||[]).map(t=>t.name)].filter(Boolean).map(e).join(' · ')}</small></div><span class="itemprice">${format(lineTotal(x))}</span><button class="mini" data-edit-cart="${i}">Edit</button></div>`).join(''):'<p class="empty">Tap a product to start a sale.</p>';
+  function renderCart(){const a=amounts();$('cartList').innerHTML=state.cart.length?state.cart.map((x,i)=>`<div class="cartitem"><div class="itemText"><strong>${e(x.qty)}× ${e(x.name)}</strong><small>${[x.variant||'',...(x.flavors||[]).map(id=>state.flavors.find(f=>f.id===id)?.name||'Removed flavor'),...(x.extras||[]).map(t=>t.name)].filter(Boolean).map(e).join(' · ')}</small></div><span class="itemprice">${format(lineTotal(x))}</span><button class="mini" data-edit-cart="${i}">Edit</button></div>`).join('') :'<p class="empty">Your sale is empty.<br>Tap an item to begin.</p>';
     $('subtotal').textContent=format(a.sub);$('tax').textContent=format(a.tax);$('total').textContent=format(a.total);$('taxCaption').textContent=`(${Number(state.taxPercent)||0}%)`;
-    const paid=state.paidSaleId===state.saleId;$('checkout').disabled=!state.cart.length||a.incomplete||paid;$('checkout').textContent=paid?'Sale completed — clear to start next':a.incomplete?'Set missing prices before payment':'Pay with Square — TEST ONLY';$('checkoutNotice').textContent=paid?'Sandbox payment reported success; do not charge this sale again.':a.incomplete?'One or more products need a verified price. Tap Manage → Products.':'Tax is set manually. Verify tax, modifiers, total, and Square location before checkout.';save();}
+    const paid=state.paidSaleId===state.saleId;$('checkout').disabled=!state.cart.length||a.incomplete||paid||a.total<=0;$('checkout').textContent=paid?'Test sale completed':a.incomplete?'Set missing prices': 'Charge '+format(a.total)+' · TEST';$('checkoutNotice').textContent=paid?'Sandbox payment reported success; do not charge this sale again.':a.incomplete?'One or more products need a verified price. Tap Manage → Products.':'Tax is set manually. Verify tax, modifiers, total, and Square location before checkout.';$('cartItemCount').textContent=state.cart.reduce((n,x)=>n+(x.qty||1),0)+' items';updateMobileCart();save();}
   function render(){catalog();renderCart();syncSquareStatus();}
   function productById(id){return state.products.find(p=>p.id===id);}
-  function addOrEditItem(productId,index=null){const p=productById(productId);if(!p)return;const current=index===null?null:state.cart[index];let chosenVariant=current?.variant||p.variants?.[0]||'';let choices=current?.flavors?.slice()||Array(p.scoops||0).fill('').map(()=>state.flavors.find(f=>f.active)?.id||'');let extras=(current?.extras||[]).map(x=>x.name);
+  function addOrEditItem(productId,index=null){if(state.paidSaleId===state.saleId){toast('This test sale is complete. Clear the sale to begin another.');return;}const p=productById(productId);if(!p)return;const current=index===null?null:state.cart[index];let chosenVariant=current?.variant||p.variants?.[0]||'';let choices=current?.flavors?.slice()||Array(p.scoops||0).fill('').map(()=>state.flavors.find(f=>f.active)?.id||'');let extras=(current?.extras||[]).map(x=>x.name);
     const variations=(p.variants||[]).length?`<label class="field">Variation<select id="choiceVariant">${p.variants.map(v=>`<option value="${e(v)}" ${v===chosenVariant?'selected':''}>${e(v)}</option>`).join('')}</select></label>`:'';
     const flavorRows=Array.from({length:p.scoops||0},(_,j)=>`<label class="field">Scoop ${j+1}<select class="flavorSelect" data-scoop="${j}">${state.flavors.filter(f=>f.active||choices[j]===f.id).map(f=>`<option value="${e(f.id)}" ${choices[j]===f.id?'selected':''}>${e(f.name)}${f.price?' (+'+format(f.price)+')':''}${!f.active?' (unavailable)':''}</option>`).join('')}</select></label>`).join('');
     const extraRows=(p.extras||[]).length?`<div class="divider"></div><strong>Modifiers</strong>${p.extras.map((x,j)=>`<label class="field"><input type="checkbox" data-extra="${j}" ${extras.includes(x.name)?'checked':''}> ${e(x.name)} (+${format(x.price)})</label>`).join('')}`:'';
@@ -106,7 +146,7 @@
   };
   $('categories').addEventListener('click',ev=>{const b=ev.target.closest('[data-cat]');if(b){category=b.dataset.cat;catalog();}});
   $('productGrid').addEventListener('click',ev=>{const b=ev.target.closest('[data-product]');if(b)addOrEditItem(b.dataset.product);});
-  $('cartList').addEventListener('click',ev=>{const b=ev.target.closest('[data-edit-cart]');if(b){const i=Number(b.dataset.editCart);addOrEditItem(state.cart[i].productId,i);}});
+  $('cartList').addEventListener('click',ev=>{const b=ev.target.closest('[data-edit-cart]');if(b){const i=Number(b.dataset.editCart);const item=state.cart[i];if(!item)return;if(item.productId==='manual')editCustomItem(i);else addOrEditItem(item.productId,i);}});
   $('dialogBody').addEventListener('click',ev=>{const b=ev.target.closest('[data-manage-product]');if(b)editProduct(b.dataset.manageProduct);});
   $('newProduct').onclick=()=>editProduct();$('settingsButton').onclick=manage;
   $('clearCart').onclick=()=>{if(state.cart.length&&!confirm('Clear the entire current sale? Check payment status in Square first if you attempted checkout.'))return;state.cart=[];state.saleId=makeId();state.paidSaleId=null;render();};
@@ -118,5 +158,84 @@
     const ok=confirm('SQUARE SANDBOX TEST (no real charge)\n\nSubtotal: '+format(a.sub)+'\nManual tax: '+format(a.tax)+' ('+state.taxPercent+'%)\nTOTAL: '+format(a.total)+'\n\nConfirm all prices, modifiers, tax and location are correct. Proceed to Square?');if(!ok)return;
     window.LaurieSquare.takePayment(a.total,state.saleId,note);
   };
-  render();document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncSquareStatus();});
+  // Square-style navigation, favorites and custom amount keypad. All sale data remains local.
+  function updateMobileCart(){
+    const a=amounts();
+    $('mobileCartAmount').textContent=format(a.total);
+    $('mobileCartBar').hidden=activeNav!=='checkout'||state.cart.length===0;
+  }
+  function closeCartDrawer(){
+    document.body.classList.remove('cart-open');
+    $('cartScrim').hidden=true;
+  }
+  function showSection(which){
+    activeNav=which;
+    closeCartDrawer();
+    $('checkoutWorkspace').hidden=which!=='checkout';
+    $('activityPanel').hidden=which!=='activity';
+    $('morePanel').hidden=which!=='more';
+    for(const b of $('bottomNav').querySelectorAll('[data-nav]')){
+      const isActive=b.dataset.nav===which;
+      b.classList.toggle('active',isActive);
+      if(isActive)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');
+    }
+    updateMobileCart();
+    window.scrollTo(0,0);
+  }
+  function editCustomItem(index){
+    if(state.paidSaleId===state.saleId){toast('Clear the completed sale before changing items.');return;}
+    const item=state.cart[index];
+    if(!item)return;
+    openModal('Edit custom amount',
+      '<label class="field">Price in dollars<input id="manualPrice" inputmode="decimal" value="'+e((item.price/100).toFixed(2))+'"></label>'+
+      '<label class="field">Quantity<input id="manualQty" type="number" min="1" max="99" value="'+e(item.qty)+'"></label>',[
+      {label:'Remove item',click:()=>{state.cart.splice(index,1);save();closeModal();render();}},
+      {label:'Cancel',click:closeModal},
+      {label:'Save',kind:'primary',click:()=>{
+        const price=moneyIn($('manualPrice').value),qty=Number($('manualQty').value);
+        if(!Number.isInteger(price)||price<=0||price>1000000||!Number.isInteger(qty)||qty<1||qty>99){toast('Check amount and quantity');return;}
+        state.cart[index]={...item,price,qty};save();closeModal();render();
+      }}
+    ]);
+  }
+  $('registerTabs').addEventListener('click',ev=>{
+    const btn=ev.target.closest('[data-register-tab]');if(!btn)return;
+    registerTab=btn.dataset.registerTab;catalog();
+  });
+  $('itemSearch').addEventListener('input',ev=>{searchText=ev.target.value;catalog();});
+  $('productGrid').addEventListener('click',ev=>{
+    const favorite=ev.target.closest('[data-favorite]');if(!favorite)return;
+    const id=favorite.dataset.favorite;
+    if(state.favorites.includes(id))state.favorites=state.favorites.filter(x=>x!==id);
+    else state.favorites.push(id);
+    save();catalog();toast('Favorites updated');
+  });
+  $('bottomNav').addEventListener('click',ev=>{
+    const b=ev.target.closest('[data-nav]');if(b)showSection(b.dataset.nav);
+  });
+  $('manageFromMore').onclick=manage;
+  $('flavorsFromMore').onclick=flavorsEditor;
+  $('newFromMore').onclick=()=>editProduct();
+  $('mobileCartBar').onclick=()=>{
+    document.body.classList.add('cart-open');$('cartScrim').hidden=false;
+  };
+  $('closeCart').onclick=closeCartDrawer;
+  $('cartScrim').onclick=closeCartDrawer;
+  $('keypadPanel').addEventListener('click',ev=>{
+    const key=ev.target.closest('[data-key]');if(!key)return;
+    const digit=key.dataset.key;
+    if(digit==='clear')amountDigits='';
+    else if(digit==='back')amountDigits=amountDigits.slice(0,-1);
+    else if(amountDigits.length<9){amountDigits=(amountDigits+digit).replace(/^0+(?=\d)/,'');}
+    $('keypadAmount').textContent=format(Number(amountDigits||'0'));
+    $('addCustomAmount').disabled=!Number(amountDigits||0)||Number(amountDigits)>1000000;
+  });
+  $('addCustomAmount').onclick=()=>{
+    if(state.paidSaleId===state.saleId){toast('Clear the completed sale first.');return;}
+    const cents=Number(amountDigits||0);
+    if(!Number.isSafeInteger(cents)||cents<=0||cents>1000000){toast('Enter a custom amount from $0.01 to $10,000.00');return;}
+    state.cart.push({key:makeId(),productId:'manual',name:'Custom amount',variant:'',flavors:[],extras:[],price:cents,qty:1});
+    amountDigits='';save();render();toast('Custom amount added to sale');
+  };
+    render();document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncSquareStatus();});
 })();

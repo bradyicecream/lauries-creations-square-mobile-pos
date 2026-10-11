@@ -3,6 +3,8 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -11,6 +13,24 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v4
+      - name: Validate register JavaScript and element IDs
+        shell: bash
+        run: |
+          node --check app/src/main/assets/app.js
+          python3 - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          class IDs(HTMLParser):
+              def __init__(self): super().__init__(); self.ids=[]
+              def handle_starttag(self,tag,attrs):
+                  for key,value in attrs:
+                      if key=='id': self.ids.append(value)
+          p=IDs(); p.feed(Path('app/src/main/assets/index.html').read_text())
+          assert len(p.ids)==len(set(p.ids)), 'Duplicate HTML IDs found'
+          required={'checkout','productGrid','dialog','registerTabs','keypadPanel','bottomNav','cartList','squareConnect','readerSettings'}
+          assert required.issubset(set(p.ids)), 'Missing register elements: '+str(required-set(p.ids))
+          print('Register assets passed validation')
+          PY
       - name: Install Java 17
         uses: actions/setup-java@v4
         with:
