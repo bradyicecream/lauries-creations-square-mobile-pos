@@ -84,6 +84,25 @@ body{background:#fff}
 .squarePickerList,.squareCategoryPicker{overflow-y:auto;max-height:220px;border:1px solid #e8e8eb;border-radius:7px;padding:3px 10px;margin:6px 0 12px}
 .squareShortcutPills{display:flex;flex-wrap:wrap;gap:6px}
 .squareShortcutPills button{font-size:12px;border-radius:5px;min-height:38px}
+/* Searchable Library list and familiar edge-to-edge keypad */
+.libraryListView{display:flex;flex-direction:column;gap:0;border-top:1px solid #e9eaec}
+.libraryListView .productTile{position:relative;border-bottom:1px solid #e9eaec}
+.libraryListView .product{min-height:72px;height:auto;border:0;border-radius:0;box-shadow:none;padding:10px 45px 10px 5px;display:flex;flex-direction:row;align-items:center;gap:12px}
+.libraryListView .product .emoji{width:45px;height:45px;min-width:45px;border-radius:5px;background:#f2f3f4}
+.libraryListView .product .tileInfo{flex:1;min-width:0}
+.libraryListView .product .name{font-size:13px;color:#252427;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.libraryListView .product .tileMeta{font-size:11px;color:#929095}
+.libraryListView .product .price{font-size:13px;color:#343236;white-space:nowrap}
+.libraryListView .favoriteToggle{right:4px;top:50%;transform:translateY(-50%);box-shadow:none;border:0;background:transparent;color:#86898e}
+.libraryListView .favoriteToggle.active{color:#087bb6}
+.keypadPanel{max-width:520px}
+.amountWell{border-radius:0;border:1px solid #e3e6e8;margin:0 0 8px;box-shadow:none}
+.amountWell strong{font-size:46px;color:#71767b}
+.numberPad{gap:0;margin-bottom:10px}
+.numberPad button{border-radius:0;background:#fff;border-right:0;border-bottom:0;border-color:#e1e5e8;font-size:28px;font-weight:420;min-height:77px}
+.numberPad button:nth-child(3n){border-right:1px solid #e1e5e8}
+.numberPad button:nth-last-child(-n+3){border-bottom:1px solid #e1e5e8}
+.numberPad button:active{background:#e9f4fa}
 .cartpane{padding:11px 13px 17px;max-height:calc(100dvh - 87px);border-left:1px solid #e1e2e5}
 .cartHeader{padding-bottom:10px}
 .cartHeader .eyebrow{display:none}
