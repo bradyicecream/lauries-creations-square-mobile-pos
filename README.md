@@ -6,7 +6,7 @@ A purple, touch-friendly Laurie’s Creations register for Zebra TC21 handhelds 
 
 ## Included in this starter
 
-- Fully branded register with responsive handheld / tablet layout
+- Square-inspired checkout interface: Favorites grid, searchable Item Library, custom-amount keypad, bottom Checkout / Activity / More navigation, and mobile sale drawer\n- Fully branded register with responsive handheld / tablet layout
 - Confirmed catalog examples: Tumbler ($25) with Black OSU, White OSU, Black OU, White OU; Autism awareness ($1); Halloween bracelet ($3)
 - Ice cream product buttons with editable flavors, flavor availability, per-scoop upcharges, and flavor editing **after adding to the cart**
 - Editable product names, prices, categories, variations, and named modifier upcharges
@@ -43,7 +43,7 @@ Square takes over the screen for the secure payment flow. The register's total i
 
 ## Building locally (optional)
 
-Requires JDK 17, Android SDK 35, Gradle 8.13, and internet to resolve the Square SDK Maven repository.
+Requires JDK 17, Android SDK 36, Gradle 8.13, and internet to resolve the Square SDK Maven repository.
 
 ```
 gradle :app:assembleDebug -PsquareSandboxAppId=YOUR_SANDBOX_APPLICATION_ID
@@ -60,4 +60,4 @@ Without that property, the register UI remains usable in preview/offline practic
 
 Official docs: https://developer.squareup.com/docs/mobile-payments-sdk/android
 
-**Development status:** Source starter prepared; Android APK compile and on-device payment flow have not been run or independently verified in this environment. Complete a GitHub Actions build and test with the SDK's Sandbox mock reader before depending on it.
+**Development status:** A prior Sandbox APK build succeeded. The Square-style v1.1 interface and on-device checkout must be validated with a fresh CI build and real device tests. This is a custom Laurie’s Creations interface inspired by common POS navigation patterns, not a modified or official Square Point of Sale app.
