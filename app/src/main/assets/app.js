@@ -19,7 +19,7 @@
       {id:'chocolate',name:'Chocolate',price:0,active:true},
       {id:'strawberry',name:'Strawberry',price:0,active:true}
     ];
-    return {products,flavors,taxPercent:0,cart:[],saleId:makeId(),paidSaleId:null,favorites:products.slice(0,8).map(p=>p.id),savedCatalogVersion:savedCatalog.version||null};
+    return {products,flavors,taxPercent:0,cart:[],saleId:makeId(),saleNote:'',paidSaleId:null,favorites:products.slice(0,8).map(p=>p.id),savedCatalogVersion:savedCatalog.version||null};
   };
   function makeId(){return 'LC'+Date.now().toString(36).toUpperCase()+Math.random().toString(36).slice(2,7).toUpperCase();}
   let state;
@@ -28,6 +28,7 @@
   const groupsApi=window.LaurieFavoriteGroups;
   groupsApi.normalize(state); // Migrates older single Favorites lists without deleting them.
   const modifiersApi=window.LaurieModifierGroups;
+  const cartApi=window.LaurieRegisterCart;
   modifiersApi.normalize(state); // Preserves and migrates saved per-product modifier groups.
   const $=id=>document.getElementById(id);
   const format=cents=>cents===null||!Number.isSafeInteger(cents)?'PRICE NEEDED':(cents/100).toLocaleString('en-US',{style:'currency',currency:'USD'});
@@ -76,7 +77,8 @@
       :registerTab==='keypad'?'Enter a custom dollar amount.'
       :'Browse all your items. ★ adds an item to the selected Favorites tab.';
     $('catalogHint').textContent=tabHint;
-    $('searchWrap').hidden=registerTab!=='library';
+    $('searchWrap').hidden=registerTab==='keypad';
+    $('itemSearch').placeholder=registerTab==='favorites'?'Search '+currentGroup.name:'Search the item library';
     $('categories').hidden=registerTab!=='library';
     $('productGrid').hidden=registerTab==='keypad';
     $('keypadPanel').hidden=registerTab!=='keypad';
@@ -85,32 +87,74 @@
     $('categories').innerHTML=cats.map(x=>`<button class="chip ${x===category?'active':''}" data-cat="${e(x)}">${e(x)}</button>`).join('');
     let products=[];
     if(registerTab==='favorites'){
-      products=currentGroup.productIds.map(id=>state.products.find(p=>p.id===id)).filter(Boolean);
+      const q=searchText.toLowerCase().trim();
+      products=currentGroup.productIds.map(id=>state.products.find(p=>p.id===id)).filter(Boolean)
+        .filter(p=>!q||[p.name,p.category,...(p.variants||[])].join(' ').toLowerCase().includes(q));
     }else if(registerTab==='library'){
       const q=searchText.toLowerCase().trim();
       products=state.products.filter(p=>(category==='All'||p.category===category)
         &&(!q||[p.name,p.category,...(p.variants||[])].join(' ').toLowerCase().includes(q)));
     }
+    $('productGrid').setAttribute('aria-label',registerTab==='favorites'?currentGroup.name+' favorites':'Item library');
     $('productGrid').innerHTML=products.length?products.map(p=>`
       <div class="productTile">
         <button class="product" type="button" data-product="${e(p.id)}" aria-label="Add ${e(p.name)}">
           <span class="emoji" aria-hidden="true">${e(p.icon||'🧵')}</span>
-          <span class="name">${e(p.name)}</span>
+          <span class="tileInfo"><span class="name">${e(p.name)}</span><span class="tileMeta">${e(p.category||'Item')}</span></span>
           <span class="${p.price===null?'unverified':'price'}">${format(p.price)}${p.scoops?' · '+p.scoops+' scoop'+(p.scoops>1?'s':''):''}</span>
         </button>
         ${registerTab==='library'?`<button type="button" class="favoriteToggle ${currentGroup.productIds.includes(p.id)?'active':''}" data-favorite="${e(p.id)}" aria-label="${currentGroup.productIds.includes(p.id)?'Remove from':'Add to'} ${e(currentGroup.name)}" aria-pressed="${currentGroup.productIds.includes(p.id)}">${currentGroup.productIds.includes(p.id)?'★':'☆'}</button>`:''}
       </div>`).join(''):registerTab!=='keypad'
-        ?'<p class="empty">No items in this tab yet. Tap Edit items or open Library to add favorites.</p>':'';
+        ?(searchText?'<p class="empty">No matching items. Clear the search to see more.</p>':'<p class="empty">No items in this group yet. Tap Edit items to add favorites.</p>'):'';
     $('keypadAmount').textContent=format(Number(amountDigits||'0'));
     $('addCustomAmount').disabled=!Number(amountDigits||0)||Number(amountDigits)>1000000;
   }
   function lineTotal(item){if(item.price===null||!Number.isSafeInteger(item.price))return null;return item.price*(item.qty||1);}
   function amounts(){const incomplete=state.cart.some(x=>lineTotal(x)===null||x.needsReview===true);const sub=state.cart.reduce((sum,x)=>sum+(lineTotal(x)||0),0);const percent=Number(state.taxPercent)||0;const tax=Math.round(sub*percent/100);return {sub,tax,total:sub+tax,incomplete};}
-  function renderCart(){const a=amounts();$('cartList').innerHTML=state.cart.length?state.cart.map((x,i)=>`<div class="cartitem"><div class="itemText"><strong>${e(x.qty)}× ${e(x.name)}</strong><small>${[x.variant||'',...(x.flavors||[]).map(id=>state.flavors.find(f=>f.id===id)?.name||'Removed flavor'),...(x.extras||[]).map(t=>t.name)].filter(Boolean).map(e).join(' · ')}</small></div><span class="itemprice">${format(lineTotal(x))}</span><button class="mini" data-edit-cart="${i}">Edit</button></div>`).join('') :'<p class="empty">Your sale is empty.<br>Tap an item to begin.</p>';
-    $('subtotal').textContent=format(a.sub);$('tax').textContent=format(a.tax);$('total').textContent=format(a.total);$('taxCaption').textContent=`(${Number(state.taxPercent)||0}%)`;
-    const paid=state.paidSaleId===state.saleId;$('checkout').disabled=!state.cart.length||a.incomplete||paid||a.total<=0;$('checkout').textContent=paid?'Test sale completed':a.incomplete?'Review item prices': 'Charge '+format(a.total)+' · TEST';$('checkoutNotice').textContent=paid?'Sandbox payment reported success; do not charge this sale again.':a.incomplete?'One or more items came from an older snapshot and require price verification. Edit the product under More → Products.':'Tax is set manually. Verify tax, modifiers, total, and Square location before checkout.';$('cartItemCount').textContent=state.cart.reduce((n,x)=>n+(x.qty||1),0)+' items';updateMobileCart();save();}
+  function renderCart(){
+    const a=amounts();
+    $('cartList').innerHTML=state.cart.length?state.cart.map((x,i)=>`<div class="cartitem">
+      <span class="cartQty" aria-label="Quantity ${e(x.qty)}">${e(x.qty)}×</span>
+      <div class="itemText"><strong>${e(x.name)}</strong><small>${[x.variant||'',...(x.flavors||[]).map(id=>state.flavors.find(f=>f.id===id)?.name||'Removed flavor'),...(x.extras||[]).map(t=>t.name)].filter(Boolean).map(e).join(' · ')}</small></div>
+      <div class="cartLineRight">
+        <span class="itemprice">${format(lineTotal(x))}</span>
+        <div class="cartLineActions">
+          <button class="mini quantityAction" type="button" data-dec-cart="${i}" aria-label="Decrease quantity of ${e(x.name)}">−</button>
+          <button class="mini quantityAction" type="button" data-inc-cart="${i}" aria-label="Increase quantity of ${e(x.name)}">＋</button>
+          <button class="mini" type="button" data-edit-cart="${i}" aria-label="Edit ${e(x.name)}">Edit</button>
+        </div>
+      </div>
+    </div>`).join('') :`<div class="cartEmpty"><span aria-hidden="true" class="cartEmptyIcon">▣</span><strong>Start a new sale</strong><small>Tap an item to add it to your order.</small></div>`;
+    $('subtotal').textContent=format(a.sub);
+    $('tax').textContent=format(a.tax);
+    $('total').textContent=format(a.total);
+    $('taxCaption').textContent=`(${Number(state.taxPercent)||0}%)`;
+    const paid=state.paidSaleId===state.saleId;
+    $('checkout').disabled=!state.cart.length||a.incomplete||paid||a.total<=0;
+    $('checkout').textContent=paid?'Test sale completed':a.incomplete?'Review item prices':'Charge '+format(a.total)+' · TEST';
+    $('checkoutNotice').textContent=paid?'Sandbox payment reported success; do not charge this sale again.':a.incomplete?'One or more items came from an older snapshot and require price verification. Edit the product under More → Products.':'Tax is set manually. Verify tax, modifiers, total, and Square location before checkout.';
+    $('cartItemCount').textContent=state.cart.reduce((n,x)=>n+(x.qty||1),0)+' items';
+    const note=typeof state.saleNote==='string'?state.saleNote:'';
+    $('saleNoteLabel').textContent=note?'Edit sale note':'Add sale note';
+    $('saleNotePreview').hidden=!note;
+    $('saleNotePreview').textContent=note;
+    updateMobileCart();
+    save();
+  }
   function render(){catalog();renderCart();syncSquareStatus();}
   function productById(id){return state.products.find(p=>p.id===id);}
+  // Like a register's quick tile: one tap adds a simple item.
+  // Products with variations, flavors, or modifier choices always open the options sheet.
+  function addFromGrid(productId){
+    if(state.paidSaleId===state.saleId){toast('Clear the completed sale to begin another.');return;}
+    const p=productById(productId);if(!p)return;
+    if(!cartApi.canQuickAdd(p,modifiersApi.forProduct(state,p).length)){
+      addOrEditItem(productId);return;
+    }
+    const result=cartApi.addSimple(state,p,makeId);
+    if(!result.ok){toast('Clear the completed sale first.');return;}
+    save();render();toast(p.name+' added');
+  }
   function addOrEditItem(productId,index=null){if(state.paidSaleId===state.saleId){toast('This test sale is complete. Clear the sale to begin another.');return;}const p=productById(productId);if(!p)return;const current=index===null?null:state.cart[index];let chosenVariant=current?.variant||p.variants?.[0]||'';let choices=current?.flavors?.slice()||Array(p.scoops||0).fill('').map(()=>state.flavors.find(f=>f.active)?.id||'');let extras=(current?.extras||[]).map(x=>x.name);
     const variations=(p.variants||[]).length?`<label class="field">Variation<select id="choiceVariant">${p.variants.map(v=>`<option value="${e(v)}" ${v===chosenVariant?'selected':''}>${e(v)}${p.variantPrices&&p.variantPrices[v]!=null?' ('+format(p.variantPrices[v])+')':''}</option>`).join('')}</select></label>`:'';
     const flavorRows=Array.from({length:p.scoops||0},(_,j)=>`<label class="field">Scoop ${j+1}<select class="flavorSelect" data-scoop="${j}">${state.flavors.filter(f=>f.active||choices[j]===f.id).map(f=>`<option value="${e(f.id)}" ${choices[j]===f.id?'selected':''}>${e(f.name)}${f.price?' (+'+format(f.price)+')':''}${!f.active?' (unavailable)':''}</option>`).join('')}</select></label>`).join('');
@@ -307,11 +351,38 @@
     else {toast(msg.message||msg.type);if(msg.type==='authorized')syncSquareStatus();}
   };
   $('categories').addEventListener('click',ev=>{const b=ev.target.closest('[data-cat]');if(b){category=b.dataset.cat;catalog();}});
-  $('productGrid').addEventListener('click',ev=>{const b=ev.target.closest('[data-product]');if(b)addOrEditItem(b.dataset.product);});
-  $('cartList').addEventListener('click',ev=>{const b=ev.target.closest('[data-edit-cart]');if(b){const i=Number(b.dataset.editCart);const item=state.cart[i];if(!item)return;if(item.productId==='manual')editCustomItem(i);else addOrEditItem(item.productId,i);}});
+  $('productGrid').addEventListener('click',ev=>{const b=ev.target.closest('[data-product]');if(b)addFromGrid(b.dataset.product);});
+  $('cartList').addEventListener('click',ev=>{
+    const edit=ev.target.closest('[data-edit-cart]');
+    const increase=ev.target.closest('[data-inc-cart]');
+    const decrease=ev.target.closest('[data-dec-cart]');
+    if(!edit&&!increase&&!decrease)return;
+    if(state.paidSaleId===state.saleId){toast('Clear the completed sale to change its items.');return;}
+    const index=Number((edit||increase||decrease).dataset.editCart
+      ??increase?.dataset.incCart??decrease?.dataset.decCart);
+    const item=state.cart[index];if(!item)return;
+    if(increase||decrease){
+      const result=cartApi.adjustQuantity(state,index,increase?1:-1);
+      if(!result.ok){toast(result.reason==='maximum'?'Maximum 99 per line. Add another item instead.':'Unable to update this sale.');return;}
+      save();render();return;
+    }
+    if(item.productId==='manual')editCustomItem(index);else addOrEditItem(item.productId,index);
+  });
   $('dialogBody').addEventListener('click',ev=>{const b=ev.target.closest('[data-manage-product]');if(b)editProduct(b.dataset.manageProduct);});
   $('newProduct').onclick=()=>editProduct();$('settingsButton').onclick=manage;
-  $('clearCart').onclick=()=>{if(state.cart.length&&!confirm('Clear the entire current sale? Check payment status in Square first if you attempted checkout.'))return;state.cart=[];state.saleId=makeId();state.paidSaleId=null;render();};
+  $('clearCart').onclick=()=>{
+    if((state.cart.length||state.saleNote)&&!confirm('Clear this sale and its note? Check payment status in Square first if you attempted checkout.'))return;
+    state.cart=[];state.saleNote='';state.saleId=makeId();state.paidSaleId=null;render();
+  };
+  $('saleNoteButton').onclick=()=>{
+    if(state.paidSaleId===state.saleId){toast('Clear the completed sale before changing its note.');return;}
+    openModal('Sale note',
+      '<p class="favoriteManagerHelp">Add a note for this sale. Notes are stored with this device-local cart and included in the Square Sandbox payment note.</p>'+
+      '<label class="field">Note<textarea id="saleNoteInput" rows="5" maxlength="240" placeholder="Optional sale notes">'+e(state.saleNote||'')+'</textarea></label>',[
+      {label:'Cancel',click:closeModal},
+      {label:'Save note',kind:'primary',click:()=>{state.saleNote=$('saleNoteInput').value.trim().slice(0,240);save();closeModal();render();toast(state.saleNote?'Sale note saved':'Sale note cleared');}}
+    ]);
+  };
   $('squareConnect').onclick=()=>{
     if(!window.LaurieSquare?.configureSquare){
       alert('Square Sandbox setup is only available inside the installed Laurie’s Creations Android APK. Open the app on your Zebra device, not a browser preview.');
@@ -333,12 +404,13 @@
       'browser-preview':'You are in a browser preview, not the installed Android app.',
       'unavailable':'Unable to read native Square status. The Android interface may not be available.'
     };
-    alert('Laurie’s Creations POS v1.2.1\\n\\nSquare status: '+status+'\\n\\n'+(messages[status]||'Unknown SDK status.'))
+    alert('Laurie’s Creations POS v1.5.0\\n\\nSquare status: '+status+'\\n\\n'+(messages[status]||'Unknown SDK status.'))
   };
   $('readerSettings').onclick=()=>{if(window.LaurieSquare?.readerSettings)window.LaurieSquare.readerSettings();else toast('Reader settings are available in the Android APK');};
   $('checkout').onclick=()=>{const a=amounts();if(!state.cart.length||a.incomplete||a.total<=0||state.paidSaleId===state.saleId){toast('Review cart and prices first');return;}if(!window.LaurieSquare?.takePayment){toast('Payment SDK works only inside the installed Android APK');return;}
     if(squareState()!=='authorized-sandbox'){toast('Connect Square Sandbox first');return;}
-    const note=state.cart.map(x=>`${x.qty}x ${x.name}${x.variant?' / '+x.variant:''}${x.flavors?.length?' / '+x.flavors.map(id=>state.flavors.find(f=>f.id===id)?.name||'Unknown').join('+'):''}`).join('; ').slice(0,450);
+    const lines=state.cart.map(x=>`${x.qty}x ${x.name}${x.variant?' / '+x.variant:''}${x.flavors?.length?' / '+x.flavors.map(id=>state.flavors.find(f=>f.id===id)?.name||'Unknown').join('+'):''}`).join('; ');
+    const note=(lines+(state.saleNote?' | Sale note: '+state.saleNote:'')).slice(0,450);
     const ok=confirm('SQUARE SANDBOX TEST (no real charge)\n\nSubtotal: '+format(a.sub)+'\nManual tax: '+format(a.tax)+' ('+state.taxPercent+'%)\nTOTAL: '+format(a.total)+'\n\nConfirm all prices, modifiers, tax and location are correct. Proceed to Square?');if(!ok)return;
     window.LaurieSquare.takePayment(a.total,state.saleId,note);
   };
@@ -525,10 +597,10 @@
     const groupButton=ev.target.closest('[data-group-id]');
     if(groupButton){
       state.activeFavoriteGroupId=groupButton.dataset.groupId;
-      registerTab='favorites';save();catalog();return;
+      registerTab='favorites';searchText='';$('itemSearch').value='';save();catalog();return;
     }
     const btn=ev.target.closest('[data-register-tab]');
-    if(btn){registerTab=btn.dataset.registerTab;catalog();}
+    if(btn){registerTab=btn.dataset.registerTab;searchText='';$('itemSearch').value='';catalog();}
   });
   $('itemSearch').addEventListener('input',ev=>{searchText=ev.target.value;catalog();});
   $('productGrid').addEventListener('click',ev=>{

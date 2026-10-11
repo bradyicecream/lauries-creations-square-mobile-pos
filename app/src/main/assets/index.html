@@ -6,19 +6,20 @@
 <meta name="theme-color" content="#593272">
 <title>Laurie's Creations · Register</title>
 <link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="square-register.css">
 </head>
 <body>
 <header class="topbar">
-  <div class="brand"><span class="brandicon" aria-hidden="true">✦</span><div><h1>Laurie’s Creations</h1><small>handmade with love and a little bit of sparkle</small></div></div>
-  <div class="topActions"><span class="pill" id="sqStatus">Sandbox not connected</span><button class="headerbutton" id="settingsButton" type="button" aria-label="Manage register">⚙</button></div>
+  <div class="brand"><span class="brandicon" aria-hidden="true">✦</span><div><h1>Laurie’s Creations</h1><small>Point of Sale <span class="brand-separator">·</span> handmade with love and a little bit of sparkle</small></div></div>
+  <div class="topActions"><span class="pill" id="sqStatus">Sandbox not connected</span><button class="headerbutton" id="settingsButton" type="button" aria-label="Open register settings">⚙</button></div>
 </header>
-<div class="sandboxBanner">SANDBOX DEMO · PAYMENTS ARE TESTS, NOT REAL SALES</div>
+<div class="sandboxBanner"><span class="sandboxDot" aria-hidden="true"></span> SANDBOX MODE <span class="sandboxDivider">•</span> TEST PAYMENTS ONLY <span class="sandboxDivider">•</span> NOT CONNECTED TO LIVE SQUARE CATALOG</div>
 <main class="appShell">
   <div class="workspace" id="checkoutWorkspace">
     <section class="catalog" aria-label="Checkout product selection">
       <div class="cataloghead">
-        <div><h2>Checkout</h2><p id="catalogHint">Tap a favorite to add it to this sale.</p></div>
-        <button id="newProduct" class="secondary small-action" type="button">＋ Item</button>
+        <div class="catalogHeading"><span class="eyebrow">REGISTER</span><h2>Checkout</h2><p id="catalogHint">Choose an item to start a sale.</p></div>
+        <button id="newProduct" class="secondary small-action newItemBtn" type="button"><span aria-hidden="true">＋</span> New item</button>
       </div>
       <div class="favoriteTabRow">
         <nav class="registerTabs" id="registerTabs" aria-label="Favorite groups and checkout views">
@@ -37,7 +38,7 @@
         <button type="button" id="chooseFavoriteGroup" class="secondary small-action">Change group</button>
       </div>
       <div class="searchbar" id="searchWrap" hidden>
-        <span aria-hidden="true">⌕</span><input id="itemSearch" type="search" autocomplete="off" placeholder="Search items and variations" aria-label="Search item library">
+        <span aria-hidden="true" class="searchIcon">⌕</span><input id="itemSearch" type="search" autocomplete="off" placeholder="Search this tab" aria-label="Search checkout items">
       </div>
       <nav id="categories" class="categories" aria-label="Product categories"></nav>
       <div id="productGrid" class="products"></div>
@@ -52,11 +53,15 @@
         <button id="addCustomAmount" type="button" class="primary full" disabled>Add custom amount to sale</button>
         <p class="fine">Custom amounts remain local to this register until a Square checkout is completed.</p>
       </div>
-      <div class="catalogfoot">Create your own Favorites tabs, edit each group and rearrange items. Changes are saved on this device; Square does not sync Favorites tabs.</div>
+      <div class="catalogfoot"><span aria-hidden="true">✦</span> Customize the item grid with <strong>Edit tabs</strong> and <strong>Edit items</strong>. Your register settings stay on this device.</div>
     </section>
     <aside class="cartpane" id="cartPane" aria-label="Current sale">
-      <div class="cartHeader"><div><h2>Current sale</h2><small id="cartItemCount">0 items</small></div><div class="cartHeaderActions"><button id="clearCart" class="linkbtn" type="button">Clear</button><button id="closeCart" class="iconButton mobileOnly" type="button" aria-label="Close sale">✕</button></div></div>
-      <div id="cartList" class="cartList"><p class="empty">Your sale is empty.<br>Tap an item to begin.</p></div>
+      <div class="cartHeader"><div><span class="eyebrow">ORDER DETAILS</span><h2>Current sale</h2><small id="cartItemCount">0 items</small></div><div class="cartHeaderActions"><button id="clearCart" class="linkbtn" type="button">Clear</button><button id="closeCart" class="iconButton mobileOnly" type="button" aria-label="Close sale">✕</button></div></div>
+      <div class="cartTools">
+        <button id="saleNoteButton" type="button" class="cartToolButton"><span aria-hidden="true">✎</span> <span id="saleNoteLabel">Add sale note</span><span aria-hidden="true">›</span></button>
+        <div id="saleNotePreview" class="saleNotePreview" hidden></div>
+      </div>
+      <div id="cartList" class="cartList"><div class="cartEmpty"><span aria-hidden="true" class="cartEmptyIcon">▣</span><strong>Start a new sale</strong><small>Tap items on the left to add them to the cart.</small></div></div>
       <div class="cartFooter">
         <div class="totals">
           <div><span>Subtotal</span><b id="subtotal">$0.00</b></div>
@@ -65,7 +70,7 @@
         </div>
         <p id="checkoutNotice" class="notice">Verify manually entered tax and prices before taking a test payment.</p>
         <button id="checkout" type="button" class="primary full">Charge $0.00 · TEST</button>
-        <p class="fine paymentFine">Square's secure payment flow opens after you confirm checkout. No live card payments are enabled.</p>
+        <p class="fine paymentFine"><span aria-hidden="true">◈</span> Sandbox checkout uses a simulated reader. No live card payments.</p>
       </div>
     </aside>
   </div>
@@ -81,9 +86,11 @@
 <button id="mobileCartBar" class="mobileCartBar" type="button" hidden>View current sale <span id="mobileCartAmount">$0.00</span></button>
 <div id="cartScrim" class="cartScrim" hidden></div>
 <nav class="bottomNav" id="bottomNav" aria-label="Main navigation">
+  <div class="sideNavHeading">WORKSPACE</div>
   <button type="button" data-nav="checkout" class="active" aria-current="page"><span aria-hidden="true">▦</span>Checkout</button>
   <button type="button" data-nav="activity"><span aria-hidden="true">◷</span>Activity</button>
   <button type="button" data-nav="more"><span aria-hidden="true">☰</span>More</button>
+  <div class="sideNavFooter"><strong>Laurie’s Creations</strong><small>Square Sandbox test</small></div>
 </nav>
 <dialog id="dialog"><form method="dialog" id="dialogForm"><div class="dialogTop"><h2 id="dialogTitle">Edit</h2><button type="button" id="closeDialog" class="iconButton" aria-label="Close">✕</button></div><div id="dialogBody"></div><div id="dialogActions" class="dialogActions"></div></form></dialog>
 <input type="file" id="importFile" accept="application/json" hidden>
@@ -91,5 +98,6 @@
 <script src="saved-catalog.js"></script>
 <script src="favorite-groups.js"></script>
 <script src="modifier-groups.js"></script>
+<script src="register-cart.js"></script>
 <script src="app.js"></script>
 </body></html>
