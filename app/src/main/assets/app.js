@@ -185,7 +185,29 @@
   $('dialogBody').addEventListener('click',ev=>{const b=ev.target.closest('[data-manage-product]');if(b)editProduct(b.dataset.manageProduct);});
   $('newProduct').onclick=()=>editProduct();$('settingsButton').onclick=manage;
   $('clearCart').onclick=()=>{if(state.cart.length&&!confirm('Clear the entire current sale? Check payment status in Square first if you attempted checkout.'))return;state.cart=[];state.saleId=makeId();state.paidSaleId=null;render();};
-  $('squareConnect').onclick=()=>{if(window.LaurieSquare?.configureSquare)window.LaurieSquare.configureSquare();else toast('Install Android APK to connect Square Sandbox');};
+  $('squareConnect').onclick=()=>{
+    if(!window.LaurieSquare?.configureSquare){
+      alert('Square Sandbox setup is only available inside the installed Laurie’s Creations Android APK. Open the app on your Zebra device, not a browser preview.');
+      return;
+    }
+    toast('Opening Square Sandbox setup…');
+    try {
+      window.LaurieSquare.configureSquare();
+    } catch (error) {
+      alert('Could not open Square Sandbox setup: '+String(error?.message||error));
+    }
+  };
+  $('squareDiagnostic').onclick=()=>{
+    const status=squareState();
+    const messages={
+      'authorized-sandbox':'Square Sandbox is connected. Reader settings and test checkout should be available.',
+      'unauthorized-sandbox':'Square SDK is initialized. Tap Connect Sandbox and enter Sandbox credentials.',
+      'not-configured':'Square SDK is not ready on this device. Tap Connect Sandbox for a detailed explanation.',
+      'browser-preview':'You are in a browser preview, not the installed Android app.',
+      'unavailable':'Unable to read native Square status. The Android interface may not be available.'
+    };
+    alert('Laurie’s Creations POS v1.2.1\\n\\nSquare status: '+status+'\\n\\n'+(messages[status]||'Unknown SDK status.'))
+  };
   $('readerSettings').onclick=()=>{if(window.LaurieSquare?.readerSettings)window.LaurieSquare.readerSettings();else toast('Reader settings are available in the Android APK');};
   $('checkout').onclick=()=>{const a=amounts();if(!state.cart.length||a.incomplete||a.total<=0||state.paidSaleId===state.saleId){toast('Review cart and prices first');return;}if(!window.LaurieSquare?.takePayment){toast('Payment SDK works only inside the installed Android APK');return;}
     if(squareState()!=='authorized-sandbox'){toast('Connect Square Sandbox first');return;}
