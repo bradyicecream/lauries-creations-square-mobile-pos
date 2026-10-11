@@ -31,7 +31,7 @@ Under Project configuration → Environment variables set:
 - LAURIE_OAUTH_ENCRYPTION_KEY — base64-encoded 32 cryptographically random bytes. Generate in a trusted terminal with: openssl rand -base64 32.
 - SQUARE_EXPECTED_MERCHANT_ID — optional, only after confirming the seller's merchant ID independently.
 
-Save private settings directly inside Netlify, not in this repository, the Android app, screenshots, or ChatGPT. Environment variable changes require a fresh deploy. On the Free plan, site environment variables are normally shared across scopes; on eligible plans you can restrict to Functions.
+If working entirely from an iPhone, after deploying the HTTPS site, open its home page and expand **Create private setup keys on this device**. Generate two strong random values and paste them directly into the administrator key and encryption key variables in Netlify, respectively. The key generator runs inside the browser and does not transmit the values to the server. Alternatively, the encryption key can be created with openssl rand -base64 32 in a trusted terminal.\n\nSave private settings directly inside Netlify, not in this repository, the Android app, screenshots, or ChatGPT. Environment variable changes require a fresh deploy. On the Free plan, site environment variables are normally shared across scopes; on eligible plans you can restrict to Functions.
 
 ## Authorizing the Square account after deployment
 
