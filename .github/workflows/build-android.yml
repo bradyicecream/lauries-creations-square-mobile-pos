@@ -31,6 +31,7 @@ jobs:
           node scripts/test-checkout-charges.cjs
           node scripts/test-operations.cjs
           node scripts/test-operations-ui.cjs
+          node scripts/test-customer-display.cjs
           node scripts/test-register-cart.cjs
           node scripts/test-register-layout.cjs
           node scripts/test-modifier-groups.cjs
