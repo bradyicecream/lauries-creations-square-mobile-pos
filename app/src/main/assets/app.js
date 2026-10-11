@@ -108,7 +108,8 @@
       <div class="productTile">
         <button class="product" type="button" data-product="${e(p.id)}" aria-label="Add ${e(p.name)}">
           <span class="emoji" aria-hidden="true">${e(p.icon||'🧵')}</span>
-          <span class="tileInfo"><span class="name">${e(p.name)}</span><span class="tileMeta">${e(p.category||'Item')}</span></span>
+          <span class="tileInfo"><span class="name">${e(p.name)}</span><span class="tileMeta">${e(p.category||'Item')}${operationsApi.inventoryRecord(state,p.id).enabled?
+  ' · '+(operationsApi.inventoryRecord(state,p.id).quantity?'In stock: '+operationsApi.inventoryRecord(state,p.id).quantity:'Out of stock'):''}</span></span>
           <span class="${p.price===null?'unverified':'price'}">${format(p.price)}${p.scoops?' · '+p.scoops+' scoop'+(p.scoops>1?'s':''):''}</span>
         </button>
         ${registerTab==='library'?`<button type="button" class="favoriteToggle ${currentGroup.productIds.includes(p.id)?'active':''}" data-favorite="${e(p.id)}" aria-label="${currentGroup.productIds.includes(p.id)?'Remove from':'Add to'} ${e(currentGroup.name)}" aria-pressed="${currentGroup.productIds.includes(p.id)}">${currentGroup.productIds.includes(p.id)?'★':'☆'}</button>`:''}
