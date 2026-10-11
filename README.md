@@ -1,5 +1,7 @@
 # 💜 Laurie's Creations — Square Mobile POS
 
+**v1.2.1 Sandbox setup fix:** Connect Sandbox now displays a native setup/permissions dialog or clear SDK error. Open **More → Check Square connection status** to see whether the SDK is initialized, authorized, or unavailable. You must install the Android APK on the Zebra; browser previews cannot authorize payments. The bundled catalog remains a saved snapshot, not a live Square catalog sync.
+
 **New, separate Android repository.** The existing `lauries-creations-android-pos` GitHub repository is not changed.
 
 A purple, touch-friendly Laurie’s Creations register for Zebra TC21 handhelds and ET51 Android tablets. The included native Android bridge uses **Square Mobile Payments SDK 2.6.1**, not the older Point of Sale API.
