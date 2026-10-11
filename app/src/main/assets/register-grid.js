@@ -102,13 +102,22 @@
     state.favorites=state.favoriteGroups[0].productIds.slice();
     return true;
   }
+  function alignItemOrder(state,groupId){
+    const page=tiles(state,groupId),group=findGroup(state,groupId);
+    if(!group)return false;
+    const itemTiles=page.filter(tile=>tile.type==='item');
+    const wanted=group.productIds.map(id=>itemTiles.find(tile=>tile.productId===id)).filter(Boolean);
+    let at=0;
+    state.favoriteGridPages[groupId]=page.map(tile=>tile.type==='item'?wanted[at++]||tile:tile);
+    return true;
+  }
   function setColor(state,groupId,tileId,color){
     if(!COLORS.includes(color))return false;
     const tile=tiles(state,groupId).find(x=>x.id===tileId);
     if(!tile)return false;
     tile.color=color;return true;
   }
-  const api={normalize,tiles,addTile,removeTile,moveTile,setColor,defaultColor,COLORS};
+  const api={normalize,tiles,addTile,removeTile,moveTile,setColor,alignItemOrder,defaultColor,COLORS};
   root.LaurieRegisterGrid=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
