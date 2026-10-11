@@ -115,8 +115,14 @@
     $('cartList').innerHTML=state.cart.length?state.cart.map((x,i)=>`<div class="cartitem">
       <span class="cartQty" aria-label="Quantity ${e(x.qty)}">${e(x.qty)}×</span>
       <div class="itemText"><strong>${e(x.name)}</strong><small>${[x.variant||'',...(x.flavors||[]).map(id=>state.flavors.find(f=>f.id===id)?.name||'Removed flavor'),...(x.extras||[]).map(t=>t.name)].filter(Boolean).map(e).join(' · ')}</small></div>
-      <span class="itemprice">${format(lineTotal(x))}</span>
-      <button class="mini" type="button" data-edit-cart="${i}" aria-label="Edit ${e(x.name)}">Edit</button>
+      <div class="cartLineRight">
+        <span class="itemprice">${format(lineTotal(x))}</span>
+        <div class="cartLineActions">
+          <button class="mini quantityAction" type="button" data-dec-cart="${i}" aria-label="Decrease quantity of ${e(x.name)}">−</button>
+          <button class="mini quantityAction" type="button" data-inc-cart="${i}" aria-label="Increase quantity of ${e(x.name)}">＋</button>
+          <button class="mini" type="button" data-edit-cart="${i}" aria-label="Edit ${e(x.name)}">Edit</button>
+        </div>
+      </div>
     </div>`).join('') :`<div class="cartEmpty"><span aria-hidden="true" class="cartEmptyIcon">▣</span><strong>Start a new sale</strong><small>Tap an item to add it to your order.</small></div>`;
     $('subtotal').textContent=format(a.sub);
     $('tax').textContent=format(a.tax);
@@ -136,6 +142,23 @@
   }
   function render(){catalog();renderCart();syncSquareStatus();}
   function productById(id){return state.products.find(p=>p.id===id);}
+  // Like a register's quick tile: one tap adds a simple item.
+  // Products with variations, flavors, or modifier choices always open the options sheet.
+  function addFromGrid(productId){
+    if(state.paidSaleId===state.saleId){toast('Clear the completed sale to begin another.');return;}
+    const p=productById(productId);if(!p)return;
+    const customizable=Boolean((p.variants||[]).length||(p.extras||[]).length||(p.scoops||0)
+      ||modifiersApi.forProduct(state,p).length);
+    if(customizable||p.price===null||p.reviewRequired||!Number.isSafeInteger(p.price)){
+      addOrEditItem(productId);return;
+    }
+    const existing=state.cart.find(x=>x.productId===p.id&&!x.variant
+      &&!(x.flavors||[]).length&&!(x.extras||[]).length&&x.price===p.price&&x.qty<99);
+    if(existing)existing.qty++;
+    else state.cart.push({key:makeId(),productId:p.id,name:p.name,variant:'',flavors:[],extras:[],
+      price:p.price,qty:1,needsReview:false});
+    save();render();toast(p.name+' added');
+  }
   function addOrEditItem(productId,index=null){if(state.paidSaleId===state.saleId){toast('This test sale is complete. Clear the sale to begin another.');return;}const p=productById(productId);if(!p)return;const current=index===null?null:state.cart[index];let chosenVariant=current?.variant||p.variants?.[0]||'';let choices=current?.flavors?.slice()||Array(p.scoops||0).fill('').map(()=>state.flavors.find(f=>f.active)?.id||'');let extras=(current?.extras||[]).map(x=>x.name);
     const variations=(p.variants||[]).length?`<label class="field">Variation<select id="choiceVariant">${p.variants.map(v=>`<option value="${e(v)}" ${v===chosenVariant?'selected':''}>${e(v)}${p.variantPrices&&p.variantPrices[v]!=null?' ('+format(p.variantPrices[v])+')':''}</option>`).join('')}</select></label>`:'';
     const flavorRows=Array.from({length:p.scoops||0},(_,j)=>`<label class="field">Scoop ${j+1}<select class="flavorSelect" data-scoop="${j}">${state.flavors.filter(f=>f.active||choices[j]===f.id).map(f=>`<option value="${e(f.id)}" ${choices[j]===f.id?'selected':''}>${e(f.name)}${f.price?' (+'+format(f.price)+')':''}${!f.active?' (unavailable)':''}</option>`).join('')}</select></label>`).join('');
@@ -332,8 +355,25 @@
     else {toast(msg.message||msg.type);if(msg.type==='authorized')syncSquareStatus();}
   };
   $('categories').addEventListener('click',ev=>{const b=ev.target.closest('[data-cat]');if(b){category=b.dataset.cat;catalog();}});
-  $('productGrid').addEventListener('click',ev=>{const b=ev.target.closest('[data-product]');if(b)addOrEditItem(b.dataset.product);});
-  $('cartList').addEventListener('click',ev=>{const b=ev.target.closest('[data-edit-cart]');if(b){const i=Number(b.dataset.editCart);const item=state.cart[i];if(!item)return;if(item.productId==='manual')editCustomItem(i);else addOrEditItem(item.productId,i);}});
+  $('productGrid').addEventListener('click',ev=>{const b=ev.target.closest('[data-product]');if(b)addFromGrid(b.dataset.product);});
+  $('cartList').addEventListener('click',ev=>{
+    const edit=ev.target.closest('[data-edit-cart]');
+    const increase=ev.target.closest('[data-inc-cart]');
+    const decrease=ev.target.closest('[data-dec-cart]');
+    if(!edit&&!increase&&!decrease)return;
+    if(state.paidSaleId===state.saleId){toast('Clear the completed sale to change its items.');return;}
+    const index=Number((edit||increase||decrease).dataset.editCart
+      ??increase?.dataset.incCart??decrease?.dataset.decCart);
+    const item=state.cart[index];if(!item)return;
+    if(increase||decrease){
+      const next=item.qty+(increase?1:-1);
+      if(next>99){toast('Maximum 99 per line. Add another item instead.');return;}
+      if(next<=0)state.cart.splice(index,1);
+      else item.qty=next;
+      save();render();return;
+    }
+    if(item.productId==='manual')editCustomItem(index);else addOrEditItem(item.productId,index);
+  });
   $('dialogBody').addEventListener('click',ev=>{const b=ev.target.closest('[data-manage-product]');if(b)editProduct(b.dataset.manageProduct);});
   $('newProduct').onclick=()=>editProduct();$('settingsButton').onclick=manage;
   $('clearCart').onclick=()=>{
