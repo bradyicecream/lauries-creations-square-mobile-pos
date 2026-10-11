@@ -32,6 +32,10 @@
         <div><strong id="currentFavoriteName">Favorites</strong><small>Choose items in this group.</small></div>
         <button type="button" id="editActiveFavorites" class="secondary small-action">★ Edit items</button>
       </div>
+      <div class="favoritesToolbar" id="libraryFavoritesTarget" hidden>
+        <div><strong id="libraryFavoriteGroupName">Favorites</strong><small>Tap ★ to add items to this favorites group.</small></div>
+        <button type="button" id="chooseFavoriteGroup" class="secondary small-action">Change group</button>
+      </div>
       <div class="searchbar" id="searchWrap" hidden>
         <span aria-hidden="true">⌕</span><input id="itemSearch" type="search" autocomplete="off" placeholder="Search items and variations" aria-label="Search item library">
       </div>
@@ -85,5 +89,6 @@
 <input type="file" id="importFile" accept="application/json" hidden>
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="saved-catalog.js"></script>
+<script src="favorite-groups.js"></script>
 <script src="app.js"></script>
 </body></html>
