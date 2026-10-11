@@ -1,0 +1,51 @@
+/* v1.10 settings hub: mobile-friendly Square-inspired card hierarchy.
+   Status labels prevent local prototypes from appearing to be connected services. */
+.settingsHubCard{border-color:#d5e4ef}
+.settingsHubCard h3{font-weight:820}
+.settingsHubCard #settingsAndAddons{font-size:14px;font-weight:760;color:#0877b6}
+.settingsHubCard #registerPrefsFromMore{font-size:13px}
+.settingsBanner{border-bottom:1px solid #e5e7ea;margin-bottom:12px;padding:2px 0 12px}
+.settingsBanner strong{font-size:14px;font-weight:800;color:#2f2931}
+.settingsBanner p{font-size:12px;color:#757078;line-height:1.5;margin:5px 0 0}
+.settingsCount{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:#817b85;margin:5px 0 14px}
+.settingsCount span:first-child{font-weight:750;color:#52445e}
+.settingsCategory{margin:0 0 12px;border:1px solid #e6e6e9;border-radius:9px;overflow:hidden;background:#fff}
+.settingsCategory h3{display:flex;align-items:center;gap:7px;justify-content:space-between;background:#f6f6f8;border-bottom:1px solid #e7e8ea;margin:0;padding:11px 12px;font-size:13px;font-weight:800;color:#343034}
+.settingsCategory h3 span{margin-left:auto;color:#8a8790;font-size:11px;font-weight:620}
+.settingsEntry{background:#fff;border:0;border-bottom:1px solid #eeeeef;border-radius:0;display:flex;align-items:center;justify-content:space-between;text-align:left;gap:9px;padding:12px 11px;width:100%;min-height:57px;color:#28282c}
+.settingsEntry:last-child{border-bottom:0}
+.settingsEntry:active{background:#f2f8fc}
+.settingsEntryMain{flex:1;min-width:0}
+.settingsEntryMain strong{font-size:12px;font-weight:750;display:block;line-height:1.3}
+.settingsEntryMain small{font-size:10px;line-height:1.5;color:#77767d;font-weight:490;display:block;margin-top:3px}
+.settingsEntryAside{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:5px;flex:none;max-width:132px}
+.settingsStatus{font-size:9px;line-height:1.2;text-align:center;padding:4px 6px;border-radius:5px;background:#f4f5f7;color:#697078;font-weight:730}
+.settingsStatus.type-local{background:#ebf6ec;color:#28613a}
+.settingsStatus.type-preview{background:#f2ecfb;color:#7955a2}
+.settingsStatus.type-square{background:#edf3f9;color:#3d6490}
+.settingsStatus.type-hardware{background:#fcf3e7;color:#946434}
+.settingsStatus.type-subscription{background:#f7edf1;color:#93546e}
+.settingsChevron{color:#a3a1a6;font-size:16px;display:none}
+.settingsServiceStatus{font-size:12px;font-weight:780;padding:10px 12px;border-radius:8px;background:#f4f6f8}
+.settingsServiceStatus.type-local{background:#ebf6ec;color:#28613a}
+.settingsServiceStatus.type-preview{background:#f2ecfb;color:#7955a2}
+.settingsServiceStatus.type-square{background:#edf3f9;color:#3d6490}
+.settingsServiceStatus.type-hardware{background:#fcf3e7;color:#946434}
+.settingsServiceStatus.type-subscription{background:#f7edf1;color:#93546e}
+.settingsPreferenceList{border:1px solid #e5e6e8;border-radius:10px;overflow:hidden}
+.settingsToggle{display:flex;align-items:center;justify-content:space-between;gap:11px;padding:14px 12px;border-bottom:1px solid #e8e8e9;min-height:62px;cursor:pointer}
+.settingsToggle:last-child{border-bottom:0}
+.settingsToggle>span{flex:1}
+.settingsToggle strong{display:block;font-size:12px;color:#302b33;font-weight:770}
+.settingsToggle small{font-size:10px;line-height:1.5;color:#807a84;display:block;margin-top:4px}
+.settingsToggle input{width:22px;height:22px;flex:none;accent-color:#1680b9}
+.settingsFootnote{background:#f6f6f8;border-radius:7px;padding:11px 13px;color:#7c7880;font-size:11px;line-height:1.5;margin:13px 0 2px}
+.registerLargeText .squareTileCaption strong{font-size:13px}
+.registerLargeText .squareTileCaption small{font-size:11px}
+.registerLargeText .cartitem .itemText strong{font-size:15px}
+.registerExpandedTiles .squareTileGrid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.registerExpandedTiles .squareTileInitial{font-size:27px}
+@media(min-width:1024px){.registerExpandedTiles .squareTileGrid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(min-width:731px) and (max-width:1023px){.registerExpandedTiles .squareTileGrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:730px){.registerExpandedTiles .squareTileGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:420px){.settingsEntryAside{max-width:100px}.settingsStatus{font-size:8px}.settingsEntryMain strong{font-size:11.5px}.settingsEntryMain small{font-size:10px}.settingsCount{font-size:10px}.settingsBanner p{font-size:11px}}
