@@ -16,6 +16,8 @@ assert.ok(html.indexOf('operations-ui.js')<html.indexOf('app.js'));
 for(const name of ['staff','inventory','cashDrawer','loyalty','displayPreview','connectionInfo','checkout']){
   assert.ok(op.includes('function '+name+'('),'Missing workflow '+name);
 }
+assert.ok(op.includes('a.charges.map'),'Required fees must be shown before optional tip');
+assert.ok(op.includes('baseCents:a.baseTotalCents'),'Sandbox callback validates mandatory charge base');
 assert.ok(op.includes('model.quickCashAmounts'),'Cash suggestions computed dynamically');
 assert.ok(op.includes('model.tipAmount'),'Tip selection calculates real money');
 assert.ok(op.includes("root.LaurieSquare.takePayment(a.total,state.saleId,note.slice(0,450),selectedTip)"),'Tips passed separately to native Sandbox SDK');

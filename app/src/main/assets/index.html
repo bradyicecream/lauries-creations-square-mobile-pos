@@ -66,6 +66,8 @@
       <div class="cartFooter">
         <div class="totals">
           <div><span>Subtotal</span><b id="subtotal">$0.00</b></div>
+          <div id="automaticGratuityLine" hidden><span id="automaticGratuityLabel">Automatic gratuity</span><b id="automaticGratuityAmount">$0.00</b></div>
+          <div id="serviceChargeLine" hidden><span id="serviceChargeLabel">Service charge</span><b id="serviceChargeAmount">$0.00</b></div>
           <div><span>Tax <span id="taxCaption">(0%)</span></span><b id="tax">$0.00</b></div>
           <div class="grand"><span>Total</span><strong id="total">$0.00</strong></div>
         </div>
@@ -80,7 +82,7 @@
   </section>
   <section class="utilityPane" id="morePanel" hidden aria-label="More options">
     <h2>More</h2>
-    <div class="utilityCard"><h3>Register</h3><button id="manageFromMore" type="button" class="utilityRow">⚙ &nbsp; Products, modifiers &amp; tax <span>›</span></button><button id="flavorsFromMore" type="button" class="utilityRow">🍦 &nbsp; Ice cream flavors <span>›</span></button><button id="modifierGroupsFromMore" type="button" class="utilityRow">🧩 &nbsp; Modifier groups — all categories <span>›</span></button><button id="newFromMore" type="button" class="utilityRow">＋ &nbsp; Create item <span>›</span></button><button id="favoriteGroupsFromMore" type="button" class="utilityRow">★ &nbsp; Edit Favorites tabs and groups <span>›</span></button><button id="restoreCatalog" type="button" class="utilityRow">↻ &nbsp; Restore saved item library <span>›</span></button><p class="fine">Restore items from the previous Laurie’s Creations register snapshot. This is not live Square synchronization.</p></div>
+    <div class="utilityCard"><h3>Register</h3><button id="manageFromMore" type="button" class="utilityRow">⚙ &nbsp; Products, modifiers &amp; tax <span>›</span></button><button id="flavorsFromMore" type="button" class="utilityRow">🍦 &nbsp; Ice cream flavors <span>›</span></button><button id="modifierGroupsFromMore" type="button" class="utilityRow">🧩 &nbsp; Modifier groups — all categories <span>›</span></button><button id="chargesFromMore" type="button" class="utilityRow">％ &nbsp; Automatic gratuity &amp; service charges <span>›</span></button><button id="newFromMore" type="button" class="utilityRow">＋ &nbsp; Create item <span>›</span></button><button id="favoriteGroupsFromMore" type="button" class="utilityRow">★ &nbsp; Edit Favorites tabs and groups <span>›</span></button><button id="restoreCatalog" type="button" class="utilityRow">↻ &nbsp; Restore saved item library <span>›</span></button><p class="fine">Restore items from the previous Laurie’s Creations register snapshot. This is not live Square synchronization.</p></div>
     <div class="utilityCard"><h3>Business tools</h3><p class="fine">Device-local management tools for testing. Export a register backup from Products, modifiers &amp; tax before reinstalling.</p>
       <button id="staffTool" type="button" class="utilityRow">👥 &nbsp; Staff &amp; time cards <span>›</span></button>
       <button id="inventoryTool" type="button" class="utilityRow">📦 &nbsp; Inventory tracking <span>›</span></button>
@@ -112,6 +114,7 @@
 <script src="favorite-groups.js"></script>
 <script src="modifier-groups.js"></script>
 <script src="register-cart.js"></script>
+<script src="checkout-charges.js"></script>
 <script src="operations-model.js"></script>
 <script src="operations-ui.js"></script>
 <script src="app.js"></script>
