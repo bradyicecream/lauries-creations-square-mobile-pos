@@ -40,4 +40,27 @@ groups.normalize(alreadySet);
 assert.equal(alreadySet.activeFavoriteGroupId,'n','Preserves active group on upgrade');
 assert.equal(alreadySet.favoriteGroups[0].name,'Regulars','Preserves custom tab names');
 assert.equal(groups.toggleProduct(alreadySet,'n','not-in-library'),false,'Cannot add nonexistent products');
+
+// Checkout utility tabs are optional and have independent, device-local visibility.
+const oldInstall={products,favorites:['beads']};
+groups.normalize(oldInstall);
+assert.deepEqual(oldInstall.checkoutTabVisibility,{keypad:true,library:true},'Both utility tabs are visible for old installs');
+assert.equal(groups.isUtilityTabVisible(oldInstall,'keypad'),true);
+assert.equal(groups.setUtilityTabVisible(oldInstall,'keypad',false),true);
+assert.equal(groups.isUtilityTabVisible(oldInstall,'keypad'),false,'Keypad can be hidden alone');
+assert.equal(groups.isUtilityTabVisible(oldInstall,'library'),true,'Library remains visible');
+assert.equal(groups.setUtilityTabVisible(oldInstall,'library',false),true);
+assert.equal(groups.isUtilityTabVisible(oldInstall,'library'),false,'Library can also be hidden');
+assert.equal(groups.setUtilityTabVisible(oldInstall,'keypad',true),true);
+assert.equal(groups.isUtilityTabVisible(oldInstall,'keypad'),true,'Keypad can be turned back on');
+assert.equal(groups.isUtilityTabVisible(oldInstall,'library'),false,'Library stays hidden independently');
+assert.equal(groups.setUtilityTabVisible(oldInstall,'something-else',false),false,'Invalid tabs cannot be hidden');
+assert.equal(oldInstall.favoriteGroups.length,1,'Favorites group remains accessible');
+const persisted=JSON.parse(JSON.stringify(oldInstall));
+groups.normalize(persisted);
+assert.deepEqual(persisted.checkoutTabVisibility,{keypad:true,library:false},'Tab visibility survives app restart and backups');
+const fromBackup={products,checkoutTabVisibility:{keypad:false},favoriteGroups:[{id:'one',name:'Favorites',productIds:[]}]};
+groups.normalize(fromBackup);
+assert.deepEqual(fromBackup.checkoutTabVisibility,{keypad:false,library:true},'Missing settings default to visible');
+
 console.log('Favorites group migration, add, rename, remove, reorder, save, and membership tests passed.');
