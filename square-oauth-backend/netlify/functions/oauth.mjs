@@ -168,7 +168,7 @@ export default async function handler(req){
     return html('Not found','',404);
   if(!configured())return html('Connection backend is not configured',
     '<p>This new Netlify site needs its private environment settings and a deployed Functions build. No Square authorization can run yet.</p>',503);
-  if(!authorized(req))return unauth();
+  if(route!=='/oauth/login'&&!authorized(req))return unauth();
   try{
     if(route==='/oauth/login')return login(req);
     if(route==='/oauth/start')return start(req);
