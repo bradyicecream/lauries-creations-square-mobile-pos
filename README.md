@@ -6,7 +6,7 @@ A purple, touch-friendly Laurie’s Creations register for Zebra TC21 handhelds 
 
 ## Included in this starter
 
-- Square-inspired checkout interface: Favorites grid, searchable Item Library, custom-amount keypad, bottom Checkout / Activity / More navigation, and mobile sale drawer\n- Fully branded register with responsive handheld / tablet layout
+- Square-inspired checkout interface: Favorites grid, searchable Item Library, custom-amount keypad, bottom Checkout / Activity / More navigation, and mobile sale drawer\n- A saved register snapshot with 29 item records and 102 modifier options is bundled. Fresh installs see the saved snapshot; existing installs can choose **More → Restore saved item library** to merge missing products without overwriting local prices or cart. This is NOT a live Square sync.\n- Original prices marked for review are blocked from checkout until the product is reviewed under Manage.\n- Fully branded register with responsive handheld / tablet layout
 - Confirmed catalog examples: Tumbler ($25) with Black OSU, White OSU, Black OU, White OU; Autism awareness ($1); Halloween bracelet ($3)
 - Ice cream product buttons with editable flavors, flavor availability, per-scoop upcharges, and flavor editing **after adding to the cart**
 - Editable product names, prices, categories, variations, and named modifier upcharges
@@ -14,7 +14,7 @@ A purple, touch-friendly Laurie’s Creations register for Zebra TC21 handhelds 
 - Square **Sandbox** authorization, mock-reader pairing, and test checkout via native Mobile Payments SDK
 - GitHub Actions build of Android debug APK from an iPhone; no local Android Studio necessary
 
-**Not yet included**: Square product / order / modifier / tax sync, OAuth server, release signing, production processing, USB printer / cash drawer, iPad build, or synchronizing settings across devices. The starter contains only prices independently confirmed in the project; ice cream base prices deliberately require your confirmation. 
+**Not yet included**: Square product / order / modifier / tax sync, OAuth server, release signing, production processing, USB printer / cash drawer, iPad build, or synchronizing settings across devices. The restored catalog is an older, partial Square snapshot and may differ from your full current Square Item Library. Always verify variation and modifier prices before processing a Sandbox checkout. 
 
 ## Security and payment boundaries
 
