@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../netlify/functions/catalog-readonly.mjs',import.meta.url),'utf8');test('seller token merchant must match verified merchant',()=>assert.match(s,/if\(token\.merchant_id!==EXPECTED_MERCHANT_ID\)throw new Error\('wrong_merchant'\)/));

@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/catalog-compare.js',import.meta.url),'utf8');test('comparison renders variation names and Square price display',()=>{assert.match(s,/esc\(v\.name\)/);assert.match(s,/v\.price\?\.display/);});

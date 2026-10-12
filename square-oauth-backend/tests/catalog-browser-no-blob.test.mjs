@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const files=['../public/live-square-catalog.js','../public/catalog-compare.js'];test('browser catalog code never accesses Netlify Blobs',()=>{for(const f of files)assert.doesNotMatch(fs.readFileSync(new URL(f,import.meta.url),'utf8'),/getStore|@netlify\/blobs/);});

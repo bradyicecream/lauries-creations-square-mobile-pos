@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';for(const f of ['../public/live-square-catalog.js','../public/catalog-compare.js'])test(f+' has no console logging',()=>assert.doesNotMatch(fs.readFileSync(new URL(f,import.meta.url),'utf8'),/console\.(log|info|debug|error)/));

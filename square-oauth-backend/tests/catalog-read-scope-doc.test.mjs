@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/README-CATALOG-COMPARE.txt',import.meta.url),'utf8');test('documentation says no catalog writes or production payments',()=>{assert.match(s,/No production payment/);assert.match(s,/Square catalog write capability is enabled/);});

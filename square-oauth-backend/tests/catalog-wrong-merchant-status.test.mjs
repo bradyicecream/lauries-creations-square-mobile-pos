@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../netlify/functions/catalog-readonly.mjs',import.meta.url),'utf8');test('merchant mismatch maps to controlled 403',()=>{assert.match(s,/merchant_verification_failed/);assert.match(s,/code==='wrong_merchant'\?403:502/);});

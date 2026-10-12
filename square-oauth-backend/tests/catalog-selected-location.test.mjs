@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const files=['../netlify/functions/catalog-readonly.mjs','../public/live-square-catalog.js'];test('server and private browser reader agree on selected location',()=>{for(const f of files)assert.match(fs.readFileSync(new URL(f,import.meta.url),'utf8'),/LHV4RK9G8JN4T/);});

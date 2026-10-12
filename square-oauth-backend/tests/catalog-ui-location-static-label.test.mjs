@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/catalog-compare.html',import.meta.url),'utf8');test('page identifies intended O.P. Gallo Mobile location before data is loaded',()=>assert.match(s,/Read-only view for O\.P\. Gallo Mobile/));

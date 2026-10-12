@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/live-square-catalog.js',import.meta.url),'utf8');test('browser catalog request is explicitly GET',()=>assert.match(s,/method:'GET'/));

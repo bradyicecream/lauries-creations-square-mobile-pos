@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const page=fs.readFileSync(new URL('../public/catalog-compare.html',import.meta.url),'utf8');test('comparison UI identifies O.P. Gallo Mobile',()=>assert.match(page,/O\.P\. Gallo Mobile/));

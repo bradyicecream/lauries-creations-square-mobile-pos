@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';for(const f of ['../public/live-square-catalog.js','../public/catalog-compare.js'])test(f+' contains no Square credentials',()=>{const s=fs.readFileSync(new URL(f,import.meta.url),'utf8');assert.doesNotMatch(s,/access_token|refresh_token|application_secret|Bearer\s/i);});

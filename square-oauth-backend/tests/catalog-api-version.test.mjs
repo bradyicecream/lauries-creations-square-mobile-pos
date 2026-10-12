@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../netlify/functions/catalog-readonly.mjs',import.meta.url),'utf8');test('Square requests use an explicit API version',()=>{assert.match(s,/const API_VERSION='2026-09-16'/);assert.match(s,/'Square-Version':API_VERSION/);});

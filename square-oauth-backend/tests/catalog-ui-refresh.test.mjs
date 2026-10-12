@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/catalog-compare.js',import.meta.url),'utf8');test('live Square catalog loads only when user taps the load button',()=>{assert.match(s,/button\.onclick=async/);assert.doesNotMatch(s,/setInterval|setTimeout/);});

@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/catalog-compare.js',import.meta.url),'utf8');test('item rendering uses map and join and safely handles an empty item list',()=>assert.match(s,/d\.items\.map[\s\S]*\.join\(''\)/));

@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/live-square-catalog.js',import.meta.url),'utf8');test('browser reader rejects non-success response before using catalog',()=>assert.match(s,/if\(!reply\.ok\)throw new Error/));

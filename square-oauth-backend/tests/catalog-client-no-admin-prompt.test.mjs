@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/catalog-compare.js',import.meta.url),'utf8');test('comparison JS never prompts for administrator credentials',()=>assert.doesNotMatch(s,/prompt\(|password|administrator key|admin key/i));

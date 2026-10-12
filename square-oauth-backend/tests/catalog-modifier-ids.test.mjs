@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../netlify/functions/catalog-readonly.mjs',import.meta.url),'utf8');test('normalized modifier lists retain Square IDs',()=>{assert.match(s,/id:o\.id/);assert.match(s,/id:m\.id/);});

@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const p=fs.readFileSync(new URL('../public/README-CATALOG-COMPARE.txt',import.meta.url),'utf8');test('documentation states Android is not anonymously connected',()=>assert.match(p,/Android register is not granted anonymous access/));

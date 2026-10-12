@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../netlify/functions/catalog-readonly.mjs',import.meta.url),'utf8');test('catalog uses same private admin session cookie as OAuth backend',()=>assert.match(s,/SESSION_COOKIE='laurie_oauth_admin'/));

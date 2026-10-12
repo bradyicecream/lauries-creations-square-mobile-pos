@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/catalog-compare.js',import.meta.url),'utf8');test('comparison displays item variation and modifier counts',()=>{assert.match(s,/sum\.items/);assert.match(s,/sum\.variations/);assert.match(s,/sum\.modifierLists/);});

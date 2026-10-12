@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/catalog-compare.js',import.meta.url),'utf8');test('load button is disabled while fetching and restored afterward',()=>{assert.match(s,/button\.disabled=true/);assert.match(s,/finally\{button\.disabled=false/);});
