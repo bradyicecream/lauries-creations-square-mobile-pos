@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../netlify/functions/catalog-readonly.mjs',import.meta.url),'utf8');test('backend requests only MODIFIER_LIST objects for modifier comparison',()=>assert.match(s,/\/v2\/catalog\/list\?types=MODIFIER_LIST/));
