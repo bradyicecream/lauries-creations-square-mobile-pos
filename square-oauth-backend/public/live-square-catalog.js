@@ -14,8 +14,7 @@
   function getSnapshot(){return snapshot;}
   function summary(){
     if(!snapshot)return{connected:false,location:'O.P. Gallo Mobile',items:0,variations:0,categories:0,modifierLists:0};
-    return{
-      connected:true,
+    return{connected:true,
       location:snapshot.location?.name||'O.P. Gallo Mobile',
       items:snapshot.items?.length||0,
       variations:(snapshot.items||[]).reduce((n,x)=>n+(x.variations?.length||0),0),
