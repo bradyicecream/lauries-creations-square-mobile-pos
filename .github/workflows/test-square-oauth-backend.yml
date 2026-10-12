@@ -25,9 +25,12 @@ jobs:
         run: |
           node --check netlify/functions/oauth.mjs
           node --check netlify/functions/auth-helpers.mjs
-      - name: Test OAuth security helpers
+          node --check netlify/functions/catalog-readonly.mjs
+          node --check public/live-square-catalog.js
+          node --check public/catalog-compare.js
+      - name: Run OAuth and catalog security tests
         working-directory: square-oauth-backend
-        run: node --test tests/oauth.test.mjs
+        run: node --test tests/*.test.mjs
       - name: Reject accidentally committed secrets
         shell: bash
         run: |
