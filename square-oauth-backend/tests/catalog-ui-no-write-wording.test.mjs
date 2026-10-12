@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/catalog-compare.html',import.meta.url),'utf8');test('comparison page does not offer sync import or overwrite',()=>assert.doesNotMatch(s,/>\s*(Sync|Import|Overwrite|Push|Publish)\b/i));
