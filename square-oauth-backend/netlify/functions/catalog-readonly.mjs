@@ -36,7 +36,8 @@ async function squareGet(path,token){
   if(!reply.ok)throw new Error('square_'+reply.status);
   return reply.json();
 }
-// Read-only catalog list types: types=ITEM, types=CATEGORY, types=MODIFIER_LIST.\nasync function catalogListAll(type,token){
+// Read-only catalog list types: types=ITEM, types=CATEGORY, types=MODIFIER_LIST.
+async function catalogListAll(type,token){
   const objects=[];
   let cursor='';
   do{
