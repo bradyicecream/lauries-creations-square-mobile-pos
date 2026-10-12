@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../netlify/functions/catalog-readonly.mjs',import.meta.url),'utf8');test('catalog uses the existing authorized seller record',()=>assert.match(s,/TOKEN_KEY='authorized-seller-v1'/));
