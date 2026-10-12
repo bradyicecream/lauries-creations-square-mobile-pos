@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../netlify/functions/catalog-readonly.mjs',import.meta.url),'utf8');test('missing or variable Square price normalizes to null',()=>assert.match(s,/if\(!value\|\|typeof value\.amount!=='number'\)return null/));
