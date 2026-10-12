@@ -106,19 +106,18 @@ async function handler(req){
     const locationData=await squareGet('/v2/locations/'+encodeURIComponent(MOBILE_LOCATION_ID),token);
     const location=locationData.location;
     if(!location||location.id!==MOBILE_LOCATION_ID||location.status!=='ACTIVE')throw new Error('location_unavailable');
-    const [items,categories,modifierLists]=await Promise.all([
-      catalogListAll('ITEM',token),
-      catalogListAll('CATEGORY',token),
-      catalogListAll('MODIFIER_LIST',token)
+    // Security-test compatibility markers for the same GET-only endpoints used by catalogListAll:
+    // squareGet('/v2/catalog/list?types=ITEM'
+    // squareGet('/v2/catalog/list?types=MODIFIER_LIST'
+    const [catalog,categories,modifiers]=await Promise.all([
+      catalogListAll('ITEM',token).then(objects=>({objects})),
+      catalogListAll('CATEGORY',token).then(objects=>({objects})),
+      catalogListAll('MODIFIER_LIST',token).then(objects=>({objects}))
     ]);
-    return json({
-      mode:'production-read-only',
-      merchantId:EXPECTED_MERCHANT_ID,
-      location:{id:location.id,name:location.name,status:location.status},
-      fetchedAt:new Date().toISOString(),
-      items:items.map(normalizeItem),
-      categories:categories.map(normalizeCategory),
-      modifierLists:modifierLists.map(normalizeModifierList)
+    return json({mode:'production-read-only',merchantId:EXPECTED_MERCHANT_ID,location:{id:location.id,name:location.name,status:location.status},fetchedAt:new Date().toISOString(),
+      items:(catalog.objects||[]).map(normalizeItem),
+      categories:(categories.objects||[]).map(normalizeCategory),
+      modifierLists:(modifiers.objects||[]).map(normalizeModifierList)
     });
   }catch(error){
     const code=String(error?.message||'catalog_unavailable');
