@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/catalog-compare.html',import.meta.url),'utf8');test('comparison loads only local helper scripts',()=>{assert.match(s,/src="\/live-square-catalog\.js"/);assert.match(s,/src="\/catalog-compare\.js"/);assert.doesNotMatch(s,/https:\/\/.*\.js/);});
