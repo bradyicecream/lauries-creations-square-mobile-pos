@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../netlify/functions/catalog-readonly.mjs',import.meta.url),'utf8');test('catalog errors expose only controlled error names',()=>{assert.match(s,/catalog_unavailable/);assert.match(s,/merchant_verification_failed/);assert.doesNotMatch(s,/stack\s*:/);});
