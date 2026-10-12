@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/catalog-compare.js',import.meta.url),'utf8');test('private comparison does not call Android native Square bridge',()=>assert.doesNotMatch(s,/LaurieSquare|Android|takePayment/i));
