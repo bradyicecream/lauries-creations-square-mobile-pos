@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/catalog-compare.html',import.meta.url),'utf8');test('comparison never asks user for Square username password or token',()=>assert.doesNotMatch(s,/Square (username|password|token)|access token/i));
