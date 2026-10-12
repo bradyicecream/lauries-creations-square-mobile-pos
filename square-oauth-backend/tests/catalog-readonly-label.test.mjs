@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';for(const f of ['../public/catalog-compare.html','../public/README-CATALOG-COMPARE.txt'])test(f+' labels feature read-only',()=>assert.match(fs.readFileSync(new URL(f,import.meta.url),'utf8'),/read-only/i));
