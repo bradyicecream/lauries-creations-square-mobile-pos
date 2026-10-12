@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../../app/src/main/assets/live-square-catalog.js',import.meta.url),'utf8');test('Android placeholder never contacts Square production API directly',()=>assert.doesNotMatch(s,/connect\.squareup\.com/));
