@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/catalog-compare.html',import.meta.url),'utf8');test('comparison page has language viewport and real button controls',()=>{assert.match(s,/<html lang="en">/);assert.match(s,/name="viewport"/);assert.match(s,/<button id="load">/);});
