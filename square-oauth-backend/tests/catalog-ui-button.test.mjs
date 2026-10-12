@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/catalog-compare.html',import.meta.url),'utf8');test('comparison requires explicit user load action',()=>assert.match(s,/<button id="load">Load Square catalog<\/button>/));
