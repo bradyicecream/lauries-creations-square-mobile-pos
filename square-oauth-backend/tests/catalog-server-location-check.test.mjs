@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../netlify/functions/catalog-readonly.mjs',import.meta.url),'utf8');test('server requires exact active selected location response',()=>assert.match(s,/location\.id!==MOBILE_LOCATION_ID\|\|location\.status!=='ACTIVE'/));
