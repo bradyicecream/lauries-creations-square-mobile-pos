@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/catalog-compare.html',import.meta.url),'utf8');test('comparison begins without implying Square data is already loaded',()=>assert.match(s,/Ready to load the live catalog/));
