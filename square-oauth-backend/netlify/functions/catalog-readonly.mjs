@@ -125,4 +125,4 @@ async function handler(req){
   }
 }
 export default handler;
-export const config={path:'/api/square/catalog-readonly'};
+export const config={path:'/oauth/api/catalog-readonly'};
