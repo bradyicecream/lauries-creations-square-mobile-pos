@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/live-square-catalog.js',import.meta.url),'utf8');test('browser rejects response for any other Square location',()=>{assert.match(s,/data\.location\?\.id!==EXPECTED_LOCATION/);assert.match(s,/Square location verification failed/);});
