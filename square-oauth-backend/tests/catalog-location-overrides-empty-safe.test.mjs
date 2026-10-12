@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../netlify/functions/catalog-readonly.mjs',import.meta.url),'utf8');test('variations without location overrides safely expose an empty list',()=>assert.match(s,/\(v\.item_variation_data\?\.location_overrides\|\|\[\]\)/));
