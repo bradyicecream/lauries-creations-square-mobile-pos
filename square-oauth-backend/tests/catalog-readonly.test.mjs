@@ -9,6 +9,12 @@ test('bridge is pinned to verified O.P. Gallo Mobile location',()=>{
   assert.match(source,/MLC73J5K5F9SB/);
 });
 
+test('bridge requires the private administrator session',()=>{
+  assert.match(source,/verifySession/);
+  assert.match(source,/admin_authentication_required/);
+  assert.match(source,/return json\(\{error:'admin_authentication_required'\},401\)/);
+});
+
 test('bridge only implements GET and never exposes token fields in response model',()=>{
   assert.match(source,/req\.method!=='GET'/);
   assert.doesNotMatch(source,/access_token\s*:/);
