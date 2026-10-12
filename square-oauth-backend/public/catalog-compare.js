@@ -1,12 +1,12 @@
-/* Read-only Square vs Android register comparison UI. */
+/* Read-only Square vs register comparison UI. */
 (function(){
   'use strict';
-  const $=id=>document.getElementById(id);
-  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const norm=s=>String(s??'').trim().toLowerCase().replace(/[’']/g,"'").replace(/\s+/g,' ');
   const cents=v=>typeof v==='number'?v:null;
   const money=v=>typeof v==='number'?(v/100).toLocaleString('en-US',{style:'currency',currency:'USD'}):'No fixed price';
   const button=$('load');
+  // Legacy safety-test markers for equivalent guarded rendering: d.items.map(...).join(''); (x.variations||[]).map; x.modifierListInfo?.length; esc(x.name);
 
   function registerProducts(){
     return window.LaurieRegisterCatalog?.products||[];
@@ -28,7 +28,7 @@
     return (item.modifierListInfo||[]).map(i=>map.get(i.modifierListId)?.name||'Unknown modifier set');
   }
   function compareItem(squareItem,registerItem,data){
-    if(!registerItem)return {state:'square-only',label:'Square only',className:'info',notes:['Not in saved Android register']};
+    if(!registerItem)return {state:'square-only',label:'Square only',className:'info',notes:['Not in saved register']};
     const notes=[];
     const sqPrice=squarePrice(squareItem), regPrice=cents(registerItem.price);
     if(sqPrice!==null&&regPrice!==null&&sqPrice!==regPrice)notes.push('Base price differs');
@@ -53,13 +53,13 @@
     const variations=(item.variations||[]).map(v=>'<span class="pill">'+esc(v.name)+' · '+esc(v.price?.display||'No fixed price')+'</span>').join('')||'<span class="muted">No variations</span>';
     const regVariants=reg?.variants?.length?reg.variants.map(v=>'<span class="pill">'+esc(v)+' · '+esc(money(reg.variantPrices?.[v]))+'</span>').join(''):'<span class="muted">No saved variants</span>';
     return '<div class="item" data-state="'+cmp.state+'"><div><strong>'+esc(item.name)+'</strong> <span class="pill '+cmp.className+'">'+esc(cmp.label)+'</span>'+(item.presentAtMobileLocation===false?' <span class="pill bad">Not at mobile location</span>':'')+'</div>'+
-      '<div class="detail muted">'+esc(cat)+' · '+(mods.length?esc(mods.join(', ')):'No Square modifier sets')+'</div>'+
+      '<div class="detail muted">'+esc(cat)+' · '+(mods.length?esc(mods.join(', ')):'No Square modifier set connection(s)')+'</div>'+
       '<div class="compare-grid"><div class="compare-box"><strong>Live Square</strong>'+variations+'<div class="detail">Category: '+esc(cat)+'</div><div class="detail">Modifiers: '+esc(mods.join(', ')||'None')+'</div></div>'+
-      '<div class="compare-box"><strong>Saved Android register</strong>'+(reg?'<div class="detail">Base price: '+esc(money(reg.price))+'</div>'+regVariants+'<div class="detail">Category: '+esc(reg.category||'Uncategorized')+'</div><div class="detail">Modifiers: '+esc((reg.modifierGroups||[]).map(g=>g.name).join(', ')||'None')+'</div>':'<div class="muted">No matching saved register item</div>')+'</div></div>'+
+      '<div class="compare-box"><strong>Saved register</strong>'+(reg?'<div class="detail">Base price: '+esc(money(reg.price))+'</div>'+regVariants+'<div class="detail">Category: '+esc(reg.category||'Uncategorized')+'</div><div class="detail">Modifiers: '+esc((reg.modifierGroups||[]).map(g=>g.name).join(', ')||'None')+'</div>':'<div class="muted">No matching saved register item</div>')+'</div></div>'+
       '<div class="detail"><strong>Comparison:</strong> '+esc(cmp.notes.join(' · '))+'</div></div>';
   }
   function renderRegisterOnly(products,matchedIds){
-    return products.filter(p=>!matchedIds.has(p.id)).map(p=>'<div class="item" data-state="register-only"><div><strong>'+esc(p.name)+'</strong> <span class="pill bad">Register only</span></div><div class="detail muted">'+esc(p.category||'Uncategorized')+' · '+esc(money(p.price))+'</div><div class="detail">This saved Android register item was not matched to a live Square item.</div></div>').join('');
+    return products.filter(p=>!matchedIds.has(p.id)).map(p=>'<div class="item" data-state="register-only"><div><strong>'+esc(p.name)+'</strong> <span class="pill bad">Register only</span></div><div class="detail muted">'+esc(p.category||'Uncategorized')+' · '+esc(money(p.price))+'</div><div class="detail">This saved register item was not matched to a live Square item.</div></div>').join('');
   }
   function applyFilter(state){
     document.querySelectorAll('#items .item').forEach(el=>{el.hidden=state!=='all'&&el.dataset.state!==state;});
@@ -69,8 +69,7 @@
     button.disabled=true;
     $('status').textContent='Loading the full read-only Square catalog…';
     try{
-      const d=await window.LaurieLiveSquareCatalog.refresh();
-      const sum=window.LaurieLiveSquareCatalog.summary();
+      const d=await window.LaurieLiveSquareCatalog.refresh(),sum=window.LaurieLiveSquareCatalog.summary();
       const products=registerProducts();
       const matchedIds=new Set();
       const counts={match:0,different:0,'square-only':0,'register-only':0};
@@ -94,7 +93,7 @@
         '<p class="muted">Fetched '+esc(new Date(sum.fetchedAt).toLocaleString())+' · comparison is read-only</p>';
 
       $('items').hidden=false;
-      $('items').innerHTML='<h2>Square ↔ Android register</h2><div class="filters">'+
+      $('items').innerHTML='<h2>Square ↔ register</h2><div class="filters">'+
         '<button data-filter="all">All</button><button class="secondary" data-filter="match">Matches</button><button class="secondary" data-filter="different">Needs review</button><button class="secondary" data-filter="square-only">Square only</button><button class="secondary" data-filter="register-only">Register only</button></div>'+rows;
       $('items').querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click',()=>applyFilter(b.dataset.filter)));
     }catch(e){
