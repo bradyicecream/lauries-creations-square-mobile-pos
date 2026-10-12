@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/live-square-catalog.js',import.meta.url),'utf8');test('private browser reader keeps snapshot in memory only',()=>{assert.match(s,/let snapshot=null/);assert.doesNotMatch(s,/localStorage|sessionStorage|indexedDB/i);});
