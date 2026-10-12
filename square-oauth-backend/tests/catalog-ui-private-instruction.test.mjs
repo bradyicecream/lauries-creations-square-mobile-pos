@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/catalog-compare.html',import.meta.url),'utf8');test('comparison tells user private dashboard sign-in is required',()=>assert.match(s,/signed in to the private Laurie’s Square OAuth dashboard/));
