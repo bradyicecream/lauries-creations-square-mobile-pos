@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../netlify/functions/catalog-readonly.mjs',import.meta.url),'utf8');test('session verification uses server environment admin key',()=>assert.match(s,/verifySession\(cookie,setting\('LAURIE_OAUTH_ADMIN_KEY'\)\)/));
