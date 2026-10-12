@@ -5,6 +5,11 @@ name: Deploy Laurie Square OAuth (No Netlify Git Link)
 # The one required NETLIFY_AUTH_TOKEN is a private GitHub Actions secret.
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'square-oauth-backend/**'
+      - '.github/workflows/deploy-square-oauth-netlify.yml'
 
 concurrency:
   group: laurie-square-oauth-production
@@ -49,16 +54,17 @@ jobs:
           node --check netlify/functions/auth-helpers.mjs
           node --test tests/oauth.test.mjs
 
-      - name: Install backend tools
+      - name: Install declared backend build dependencies once
         shell: bash
         run: |
-          npm install --no-audit --no-fund
-          npm install --no-save --no-audit --no-fund netlify-cli@latest
+          npm install --include=dev --include=optional --no-audit --no-fund
+          node -e "console.log('esbuild resolved at:', require.resolve('esbuild'))"
+          node -e "console.log('netlify cli:', require('./node_modules/netlify-cli/package.json').version)"
 
       - name: Publish ONLY the Square OAuth subfolder
         shell: bash
         run: |
-          ./node_modules/.bin/netlify deploy --prod \
+          ./node_modules/.bin/netlify deploy --prod --no-build \
             --site "$NETLIFY_SITE_ID" \
             --auth "$NETLIFY_AUTH_TOKEN" \
             --dir public \

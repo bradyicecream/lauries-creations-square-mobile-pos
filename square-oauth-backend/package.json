@@ -12,5 +12,9 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "netlify-cli": "27.12.0"
   }
 }
