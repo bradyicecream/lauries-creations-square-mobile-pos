@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/catalog-compare.js',import.meta.url),'utf8');test('item rows come from current verified Square response',()=>assert.match(s,/d\.items\.map/));
