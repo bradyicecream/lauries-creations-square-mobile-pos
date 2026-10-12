@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/catalog-compare.js',import.meta.url),'utf8');test('catalog rows render text only and no edit inputs',()=>{assert.doesNotMatch(s,/<input|<select|contenteditable/i);});
