@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../netlify/functions/catalog-readonly.mjs',import.meta.url),'utf8');test('admin key is used only to verify session and not included in JSON response',()=>{assert.match(s,/setting\('LAURIE_OAUTH_ADMIN_KEY'\)/);assert.doesNotMatch(s,/adminKey\s*:/);});
