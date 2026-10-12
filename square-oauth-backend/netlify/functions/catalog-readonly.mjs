@@ -8,7 +8,7 @@ import {keyFromEnv,decryptObject,parseCookie,verifySession} from './auth-helpers
 const API_VERSION='2026-09-16';
 const STORE_NAME='lauries-square-oauth-private';
 const TOKEN_KEY='authorized-seller-v1';
-const SESSION_COOKIE='laurie_oauth_admin';
+const SESSION_COOKIE='laurie_admin_session';
 const MOBILE_LOCATION_ID='LHV4RK9G8JN4T';
 const EXPECTED_MERCHANT_ID='MLC73J5K5F9SB';
 const setting=name=>globalThis.Netlify?.env?.get(name)||process.env[name]||'';
