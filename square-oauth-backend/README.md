@@ -4,6 +4,19 @@ This code is for the **new, separate Netlify project**: https://app.netlify.com/
 
 The backend lives in its own folder within the existing Laurie’s Creations POS GitHub repo. It does not alter the register APK, and no real Square credentials have been configured or accessed.
 
+## No Netlify GitHub linking needed: GitHub Actions deployment
+
+If Netlify shows `Authorized` but never returns to repository selection, **do not keep repeating the browser authorization**. This repository has a manual **Deploy Laurie Square OAuth (No Netlify Git Link)** workflow that deploys straight to the **existing** Netlify site ID. This does NOT create another Netlify project.
+
+1. In Netlify open **User settings → Applications → Personal access tokens** and create a private access token. Treat it like a password; a shorter expiration is preferable if practical.
+2. Open GitHub repository **bradyicecream/lauries-creations-square-mobile-pos** → **Settings → Secrets and variables → Actions → New repository secret**.
+3. Set secret name to exactly `NETLIFY_AUTH_TOKEN`; paste the token in the secret value field (never in chat or in a tracked file).
+4. Open repository **Actions → Deploy Laurie Square OAuth (No Netlify Git Link) → Run workflow**. Choose branch `main`, then Run workflow.
+5. The workflow deploys ONLY `square-oauth-backend` to existing site `lauries-square-oauth`. Watch the GitHub job for success and verify the new site's Deploys page in Netlify.
+6. After deployment, configure the site's production environment variables described below, and redeploy. Only then configure the Square Production Redirect URL.
+
+The GitHub authorization that was stuck in Netlify is **not needed** for this alternative. The Netlify personal access token has account-level power; store it only as a private GitHub secret, and revoke it in Netlify if you no longer need automated deployments.
+
 ## Deployment from an iPhone
 
 1. Open https://app.netlify.com/projects/lauries-square-oauth.
