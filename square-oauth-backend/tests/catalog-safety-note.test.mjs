@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../public/catalog-compare-note.html',import.meta.url),'utf8');test('safety note states read-only and private session',()=>{assert.match(s,/read-only/);assert.match(s,/private administrator session/);assert.match(s,/O\.P\. Gallo Mobile/);});
