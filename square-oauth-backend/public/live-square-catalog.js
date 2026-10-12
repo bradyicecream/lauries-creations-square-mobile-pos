@@ -1,7 +1,7 @@
 /* Private browser-side Square catalog reader. OAuth credentials never enter this file. */
 (function(root){
   'use strict';
-  const ENDPOINT='/api/square/catalog-readonly',EXPECTED_LOCATION='LHV4RK9G8JN4T';
+  const ENDPOINT='/oauth/api/catalog-readonly',EXPECTED_LOCATION='LHV4RK9G8JN4T';
   let snapshot=null;
   async function refresh(){
     const reply=await fetch(ENDPOINT,{method:'GET',headers:{accept:'application/json'},cache:'no-store',credentials:'same-origin'});
