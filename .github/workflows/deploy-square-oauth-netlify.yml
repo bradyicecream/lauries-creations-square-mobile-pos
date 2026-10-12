@@ -1,0 +1,72 @@
+name: Deploy Laurie Square OAuth (No Netlify Git Link)
+
+# Deploy to an EXISTING Netlify project directly from GitHub Actions.
+# This bypasses the Netlify GitHub authorization "Authorized" popup loop.
+# The one required NETLIFY_AUTH_TOKEN is a private GitHub Actions secret.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: laurie-square-oauth-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: square-oauth-backend
+    env:
+      NETLIFY_SITE_ID: 088f213e-dbf9-42e9-8e58-e3b55a53534d
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      CI: 'true'
+
+    steps:
+      - name: Get the Laurie OAuth code
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check private deployment authorization is set
+        shell: bash
+        run: |
+          if [ -z "$NETLIFY_AUTH_TOKEN" ]; then
+            echo "::error::NETLIFY_AUTH_TOKEN GitHub Actions secret is missing. Create it under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+      - name: Validate backend before deploying
+        shell: bash
+        run: |
+          node --check netlify/functions/oauth.mjs
+          node --check netlify/functions/auth-helpers.mjs
+          node --test tests/oauth.test.mjs
+
+      - name: Install backend tools
+        shell: bash
+        run: |
+          npm install --no-audit --no-fund
+          npm install --no-save --no-audit --no-fund netlify-cli@latest
+
+      - name: Publish ONLY the Square OAuth subfolder
+        shell: bash
+        run: |
+          ./node_modules/.bin/netlify deploy --prod \
+            --site "$NETLIFY_SITE_ID" \
+            --auth "$NETLIFY_AUTH_TOKEN" \
+            --dir public \
+            --functions netlify/functions \
+            --message "Laurie Square OAuth secure backend"
+
+      - name: Public endpoint
+        shell: bash
+        run: |
+          echo "The backend was deployed to the existing Netlify project."
+          echo "Visit https://lauries-square-oauth.netlify.app/ after ensuring visitor-access controls and private environment settings are correct."
