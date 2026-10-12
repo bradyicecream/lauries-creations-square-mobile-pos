@@ -86,7 +86,7 @@
       counts['register-only']=regOnly.length;
       rows+=renderRegisterOnly(products,matchedIds);
 
-      $('status').textContent='Full live read-only comparison loaded.';
+      $('status').textContent='Live read-only catalog loaded. Full comparison ready.';
       $('summary').hidden=false;
       $('summary').innerHTML='<strong>'+esc(sum.location)+'</strong>'+
         '<div class="kpis"><span class="kpi">'+sum.items+' Square items</span><span class="kpi">'+sum.variations+' variations</span><span class="kpi">'+sum.categories+' categories</span><span class="kpi">'+sum.modifierLists+' modifier lists</span><span class="kpi">'+products.length+' saved register items</span></div>'+
