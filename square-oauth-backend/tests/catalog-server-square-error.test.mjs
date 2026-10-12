@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const s=fs.readFileSync(new URL('../netlify/functions/catalog-readonly.mjs',import.meta.url),'utf8');test('non-success Square API response aborts the catalog request',()=>assert.match(s,/if\(!reply\.ok\)throw new Error\('square_'\+reply\.status\)/));
