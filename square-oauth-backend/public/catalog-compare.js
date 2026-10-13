@@ -30,7 +30,7 @@
   // A selected item is exported only after an explicit click. No catalog is persisted.
   function downloadSquareItem(id){
     const data=loadedCatalog;
-    if(!data||data.mode!=='production-read-only'||data.location?.id!=='LHV4RK9G8JN4T')throw Error('Reload and verify your Square catalog first.');
+    if(!data||data.mode!=='production-read-only'||data.location?.id!==window.LaurieLiveSquareCatalog.locationId)throw Error('Reload and verify your Square catalog first.');
     const item=(data.items||[]).find(x=>x.id===id);
     if(!item||item.presentAtMobileLocation===false)throw Error('This item is not available at the selected Square location.');
     const available=new Map((data.modifierLists||[]).map(group=>[group.id,group]));
@@ -57,7 +57,7 @@
     const url=URL.createObjectURL(blob),a=document.createElement('a');
     a.href=url;a.download='lauries-square-'+slug+'.json';
     document.body.appendChild(a);a.click();a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),4000);
+    requestAnimationFrame(()=>URL.revokeObjectURL(url));
     return item.name;
   }
   function decisionControls(key,squareId=null){
