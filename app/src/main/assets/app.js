@@ -565,7 +565,7 @@
   function squareState(){try{return window.LaurieSquare?.squareState?.()||'browser-preview';}catch(_){return 'unavailable';}}
   const productionMode=window.LaurieSquare?.environment?.()==='production';
   function syncSquareStatus(){const v=squareState(),text={'not-configured':productionMode?'Production app unavailable':'Add Sandbox app ID','unauthorized-production':'Production not connected','authorized-production':'Production READY · REAL CHARGES','unauthorized-sandbox':'Sandbox not connected','authorized-sandbox':'Sandbox connected','browser-preview':'Browser preview only','unavailable':'Square unavailable'};$('sqStatus').textContent=text[v]||v;
-    if(productionMode){document.querySelector('.sandboxBanner').textContent='PRODUCTION MODE • REAL PAYMENTS • VERIFY AMOUNT & READER';$('squareConnect').textContent='Connect production';}
+    if(productionMode){document.querySelector('.sandboxBanner').textContent='PRODUCTION MODE • REAL PAYMENTS • VERIFY AMOUNT & READER';$('squareConnect').textContent='Connect production';$('squareConnect').closest('.utilityCard').querySelector('h3').textContent='Square Production';document.querySelector('.paymentFine').textContent='Card payments are REAL charges processed by Square. Cash sales remain local. Check prices, reader and amount.';}
   }
   window.receiveSquareEvent=function(payload){let msg;try{msg=JSON.parse(payload);}catch(_){return;}
     if(msg.type==='success'){
