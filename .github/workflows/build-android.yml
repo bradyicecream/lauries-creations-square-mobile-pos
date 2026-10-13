@@ -24,6 +24,7 @@ jobs:
           node scripts/test-register-grid.cjs
           node --check app/src/main/assets/square-item-import.js
           node scripts/test-square-item-import.cjs
+          node scripts/test-production-isolation.cjs
           node --check app/src/main/assets/settings-addons.js
           node --check app/src/main/assets/settings-addons-ui.js
           node scripts/test-settings-addons.cjs
