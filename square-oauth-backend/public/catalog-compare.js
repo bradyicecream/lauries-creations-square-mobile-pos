@@ -6,6 +6,7 @@
   const cents=v=>typeof v==='number'?v:null;
   const money=v=>typeof v==='number'?(v/100).toLocaleString('en-US',{style:'currency',currency:'USD'}):'No fixed price';
   const button=$('load'),decisions={};
+  let loadedCatalog=null;
   // Legacy safety-test markers for equivalent guarded rendering: d.items.map(...).join(''); (x.variations||[]).map; x.modifierListInfo?.length; esc(x.name);
 
   const decisionLabel=v=>v==='square'?'Use Square':v==='register'?'Keep Register':v==='merge'?'Merge':'Not decided';
@@ -26,14 +27,69 @@
     const sqMods=modifierNames(squareItem,data).map(norm),regMods=(registerItem.modifierGroups||[]).map(g=>norm(g.name));if(regMods.some(x=>!sqMods.includes(x))||sqMods.some(x=>!regMods.includes(x)))notes.push('Modifier sets differ');
     return notes.length?{state:'different',label:'Needs review',className:'warn',notes}:{state:'match',label:'Match',className:'good',notes:['Name and comparable details match']};
   }
-  function decisionControls(key){const current=decisions[key]||'';return '<div class="decision" data-key="'+esc(key)+'"><strong>Decision:</strong> <span class="decision-label">'+esc(decisionLabel(current))+'</span><div class="filters"><button class="secondary" data-choice="square">Use Square</button><button class="secondary" data-choice="register">Keep Register</button><button class="secondary" data-choice="merge">Merge</button><button class="secondary" data-choice="">Clear</button></div><div class="detail muted">Kept only while this page is open. Nothing is written to Square or the saved register.</div></div>';}
+  // A selected item is exported only after an explicit click. No catalog is persisted.
+  function downloadSquareItem(id){
+    const data=loadedCatalog;
+    if(!data||data.mode!=='production-read-only'||data.location?.id!==window.LaurieLiveSquareCatalog.locationId)throw Error('Reload and verify your Square catalog first.');
+    const item=(data.items||[]).find(x=>x.id===id);
+    if(!item||item.presentAtMobileLocation===false)throw Error('This item is not available at the selected Square location.');
+    const available=new Map((data.modifierLists||[]).map(group=>[group.id,group]));
+    const pack={
+      format:'lauries-square-item-v1',locationId:data.location.id,exportedAt:data.fetchedAt,
+      item:{
+        id:item.id,name:item.name,category:categoryName(item,data),presentAtMobileLocation:item.presentAtMobileLocation,
+        variations:(item.variations||[]).map(v=>{
+          const override=(v.locationOverrides||[]).find(o=>o.locationId===data.location.id);
+          return {id:v.id,name:v.name,presentAtMobileLocation:v.presentAtMobileLocation,
+            price:override?.price||v.price||null};
+        }),
+        modifierGroups:(item.modifierListInfo||[]).filter(info=>info.enabled!==false).map(info=>{
+          const group=available.get(info.modifierListId);
+          if(!group)throw Error('A Square modifier group is missing. Reload the catalog before exporting.');
+          return {id:group.id,name:group.name,min:info.minSelectedModifiers??0,
+            max:info.maxSelectedModifiers??0,
+            options:(group.modifiers||[]).map(option=>({id:option.id,name:option.name,price:option.price||null}))};
+        })
+      }
+    };
+    const slug=String(item.name||'item').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,45)||'item';
+    const blob=new Blob([JSON.stringify(pack,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download='lauries-square-'+slug+'.json';
+    document.body.appendChild(a);a.click();a.remove();
+    requestAnimationFrame(()=>URL.revokeObjectURL(url));
+    return item.name;
+  }
+  function decisionControls(key,squareId=null){
+    const current=decisions[key]||'';
+    return '<div class="decision" data-key="'+esc(key)+'" data-square-id="'+esc(squareId||'')+'"><strong>Decision:</strong> <span class="decision-label">'+esc(decisionLabel(current))+'</span><div class="filters"><button class="secondary" data-choice="square"'+(squareId?'':' disabled title="No matching Square item"')+'>Use Square</button><button class="secondary" data-choice="register">Keep Register</button><button class="secondary" data-choice="merge">Merge</button><button class="secondary" data-choice="">Clear</button></div><div class="detail muted decision-note">Use Square downloads this item as a file. On your updated Laurie’s register, choose Products &amp; modifiers → Import Square item and select the file. The register updates only after confirmation. Square stays unchanged.</div></div>';
+  }
   function renderSquareItem(item,reg,data){
     const cmp=compareItem(item,reg,data),cat=categoryName(item,data),mods=modifierNames(item,data),variations=(item.variations||[]).map(v=>'<span class="pill">'+esc(v.name)+' · '+esc(v.price?.display||'No fixed price')+'</span>').join('')||'<span class="muted">No variations</span>',regVariants=reg?.variants?.length?reg.variants.map(v=>'<span class="pill">'+esc(v)+' · '+esc(money(reg.variantPrices?.[v]))+'</span>').join(''):'<span class="muted">No saved variants</span>';
-    return '<div class="item" data-state="'+cmp.state+'"><div><strong>'+esc(item.name)+'</strong> <span class="pill '+cmp.className+'">'+esc(cmp.label)+'</span>'+(item.presentAtMobileLocation===false?' <span class="pill bad">Not at mobile location</span>':'')+'</div><div class="detail muted">'+esc(cat)+' · '+(mods.length?esc(mods.join(', ')):'No Square modifier set connection(s)')+'</div><div class="compare-grid"><div class="compare-box"><strong>Live Square</strong>'+variations+'<div class="detail">Category: '+esc(cat)+'</div><div class="detail">Modifiers: '+esc(mods.join(', ')||'None')+'</div></div><div class="compare-box"><strong>Saved register</strong>'+(reg?'<div class="detail">Base price: '+esc(money(reg.price))+'</div>'+regVariants+'<div class="detail">Category: '+esc(reg.category||'Uncategorized')+'</div><div class="detail">Modifiers: '+esc((reg.modifierGroups||[]).map(g=>g.name).join(', ')||'None')+'</div>':'<div class="muted">No matching saved register item</div>')+'</div></div><div class="detail"><strong>Comparison:</strong> '+esc(cmp.notes.join(' · '))+'</div>'+decisionControls(itemKey(item,reg))+'</div>';
+    return '<div class="item" data-state="'+cmp.state+'"><div><strong>'+esc(item.name)+'</strong> <span class="pill '+cmp.className+'">'+esc(cmp.label)+'</span>'+(item.presentAtMobileLocation===false?' <span class="pill bad">Not at mobile location</span>':'')+'</div><div class="detail muted">'+esc(cat)+' · '+(mods.length?esc(mods.join(', ')):'No Square modifier set connection(s)')+'</div><div class="compare-grid"><div class="compare-box"><strong>Live Square</strong>'+variations+'<div class="detail">Category: '+esc(cat)+'</div><div class="detail">Modifiers: '+esc(mods.join(', ')||'None')+'</div></div><div class="compare-box"><strong>Saved register</strong>'+(reg?'<div class="detail">Base price: '+esc(money(reg.price))+'</div>'+regVariants+'<div class="detail">Category: '+esc(reg.category||'Uncategorized')+'</div><div class="detail">Modifiers: '+esc((reg.modifierGroups||[]).map(g=>g.name).join(', ')||'None')+'</div>':'<div class="muted">No matching saved register item</div>')+'</div></div><div class="detail"><strong>Comparison:</strong> '+esc(cmp.notes.join(' · '))+'</div>'+decisionControls(itemKey(item,reg),item.id)+'</div>';
   }
   function renderRegisterOnly(products,matchedIds){return products.filter(p=>!matchedIds.has(p.id)).map(p=>'<div class="item" data-state="register-only"><div><strong>'+esc(p.name)+'</strong> <span class="pill bad">Register only</span></div><div class="detail muted">'+esc(p.category||'Uncategorized')+' · '+esc(money(p.price))+'</div><div class="detail">This saved register item was not matched to a live Square item.</div>'+decisionControls(itemKey(null,p))+'</div>').join('');}
   function applyFilter(state){document.querySelectorAll('#items .item').forEach(el=>{el.hidden=state!=='all'&&el.dataset.state!==state;});}
-  function wireDecisions(){document.querySelectorAll('.decision [data-choice]').forEach(b=>b.addEventListener('click',()=>{const box=b.closest('.decision'),key=box.dataset.key,choice=b.dataset.choice;if(choice)decisions[key]=choice;else delete decisions[key];box.querySelector('.decision-label').textContent=decisionLabel(choice);updateDecisionSummary();}));updateDecisionSummary();}
+  function wireDecisions(){
+    document.querySelectorAll('.decision [data-choice]').forEach(b=>b.addEventListener('click',()=>{
+      const box=b.closest('.decision'),key=box.dataset.key,choice=b.dataset.choice;
+      if(choice==='square'){
+        try{
+          const name=downloadSquareItem(box.dataset.squareId);
+          decisions[key]=choice;
+          box.querySelector('.decision-label').textContent='Square file downloaded';
+          box.querySelector('.decision-note').textContent='Downloaded '+name+'. Transfer the JSON file to your updated Laurie’s register, then open Products & modifiers → Import Square item to apply it. Nothing has changed in the register yet.';
+          $('status').textContent=name+' exported. Import the file into the updated register to apply it.';
+        }catch(error){alert(error.message||'Unable to download this Square item.');return;}
+      }else{
+        if(choice)decisions[key]=choice;else delete decisions[key];
+        box.querySelector('.decision-label').textContent=decisionLabel(choice);
+        box.querySelector('.decision-note').textContent=choice==='merge'?'Marked for manual merge review. Nothing is changed automatically.':choice==='register'?'Keeping the register version. Nothing is changed automatically.':'No decision selected. Nothing is changed.';
+      }
+      updateDecisionSummary();
+    }));
+    updateDecisionSummary();
+  }
   function updateDecisionSummary(){const values=Object.values(decisions),el=$('decision-summary');if(el)el.textContent=values.length+' decision'+(values.length===1?'':'s')+' selected this session · '+values.filter(v=>v==='square').length+' use Square · '+values.filter(v=>v==='register').length+' keep Register · '+values.filter(v=>v==='merge').length+' merge';}
 
   button.onclick=async()=>{
@@ -41,8 +97,9 @@
     try{
       const d=await window.LaurieLiveSquareCatalog.refresh(),sum=window.LaurieLiveSquareCatalog.summary(),products=registerProducts(),matchedIds=new Set(),counts={match:0,different:0,'square-only':0,'register-only':0};let rows='';
       for(const item of d.items||[]){const reg=findRegisterItem(item,products);if(reg)matchedIds.add(reg.id);const cmp=compareItem(item,reg,d);counts[cmp.state]=(counts[cmp.state]||0)+1;rows+=renderSquareItem(item,reg,d);}
+      loadedCatalog=d;
       const regOnly=products.filter(p=>!matchedIds.has(p.id));counts['register-only']=regOnly.length;rows+=renderRegisterOnly(products,matchedIds);
-      $('status').textContent='Live read-only catalog loaded. Review decisions are temporary and non-destructive.';$('summary').hidden=false;
+      $('status').textContent='Live read-only catalog loaded. Use Square prepares a single-item import file; it does not update the register until you import it.';$('summary').hidden=false;
       $('summary').innerHTML='<strong>'+esc(sum.location)+'</strong><div class="kpis"><span class="kpi">'+sum.items+' Square items</span><span class="kpi">'+sum.variations+' variations</span><span class="kpi">'+sum.categories+' categories</span><span class="kpi">'+sum.modifierLists+' modifier lists</span><span class="kpi">'+products.length+' saved register items</span></div><p><span class="pill good">'+counts.match+' match</span><span class="pill warn">'+counts.different+' need review</span><span class="pill info">'+counts['square-only']+' Square only</span><span class="pill bad">'+counts['register-only']+' register only</span></p><p id="decision-summary" class="muted"></p><p class="muted">Fetched '+esc(new Date(sum.fetchedAt).toLocaleString())+' · Square connection remains read-only</p>';
       $('items').hidden=false;$('items').innerHTML='<h2>Square ↔ register</h2><div class="filters"><button data-filter="all">All</button><button class="secondary" data-filter="match">Matches</button><button class="secondary" data-filter="different">Needs review</button><button class="secondary" data-filter="square-only">Square only</button><button class="secondary" data-filter="register-only">Register only</button></div>'+rows;
       $('items').querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click',()=>applyFilter(b.dataset.filter)));wireDecisions();
