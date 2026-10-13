@@ -16,6 +16,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.ValueCallback
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Toast
@@ -38,6 +39,8 @@ class MainActivity : Activity() {
     private lateinit var browser: WebView
     private lateinit var customerDisplay: CustomerDisplayServer
     private var inPayment = false
+    private var selectedFileCallback: ValueCallback<Array<Uri>>? = null
+    private val filePickerRequest = 701
     private val squareReady: Boolean get() = (application as LaurieApplication).sdkReady
 
     private fun notifyUI(type: String, message: String, paymentId: String = "") {
@@ -110,7 +113,28 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         customerDisplay = CustomerDisplayServer(assets).also { it.start() }
         browser = WebView(this)
-        browser.webChromeClient = WebChromeClient()
+        browser.webChromeClient = object : WebChromeClient() {
+            override fun onShowFileChooser(
+                webView: WebView?,
+                filePathCallback: ValueCallback<Array<Uri>>?,
+                fileChooserParams: FileChooserParams?
+            ): Boolean {
+                selectedFileCallback?.onReceiveValue(null)
+                selectedFileCallback = filePathCallback
+                val picker = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "*/*"
+                }
+                try {
+                    startActivityForResult(picker, filePickerRequest)
+                } catch (error: Exception) {
+                    selectedFileCallback?.onReceiveValue(null)
+                    selectedFileCallback = null
+                    Toast.makeText(this@MainActivity, "Cannot open file picker", Toast.LENGTH_LONG).show()
+                }
+                return true
+            }
+        }
         browser.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = true
         }
@@ -118,7 +142,8 @@ class MainActivity : Activity() {
             javaScriptEnabled = true
             domStorageEnabled = true
             allowFileAccess = true
-            allowContentAccess = false
+            // File chooser grants access only to the JSON file explicitly picked by the owner.
+            allowContentAccess = true
             javaScriptCanOpenWindowsAutomatically = false
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             @Suppress("DEPRECATION")
@@ -132,6 +157,14 @@ class MainActivity : Activity() {
         if (squareReady && MobilePaymentsSdk.authorizationManager().authorizationState.isAuthorized) {
             MockReaderUI.show()
         }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != filePickerRequest) return
+        val callback = selectedFileCallback ?: return
+        selectedFileCallback = null
+        callback.onReceiveValue(if (resultCode == RESULT_OK) data?.data?.let { arrayOf(it) } else null)
     }
 
     private fun requiredPermissions(): Array<String> {
@@ -291,6 +324,8 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
+        selectedFileCallback?.onReceiveValue(null)
+        selectedFileCallback = null
         if (::customerDisplay.isInitialized) customerDisplay.stop()
         if (::browser.isInitialized) {
             browser.removeJavascriptInterface("LaurieSquare")
