@@ -194,12 +194,12 @@
    function recentActivity(){
      const o=ops();
      return o.salesRecords.slice(-20).reverse().map(x=>
-       '<div class="opsRow"><div class="opsLabel"><strong>'+e(x.method==='local-cash'?'Local cash':'Square Sandbox test')+
+       '<div class="opsRow"><div class="opsLabel"><strong>'+e(x.method==='local-cash'?'Local cash':x.method==='production-card'?'Square production':'Square Sandbox test')+
        ' · '+amt(x.totalCents)+'</strong><small>'+e(date(x.at))+
        (x.mandatoryGratuityCents?' · Required gratuity '+amt(x.mandatoryGratuityCents):'')+
        (x.serviceChargeCents?' · Service charge '+amt(x.serviceChargeCents):'')+
        (x.tipCents?' · Voluntary tip '+amt(x.tipCents):'')+
-       (x.method==='local-cash'?' · Local only':' · Sandbox only')+'</small></div></div>').join('');
+       (x.method==='local-cash'?' · Local only':x.method==='production-card'?' · Real Square payment':' · Sandbox only')+'</small></div></div>').join('');
    }
    function cashPayment(sub,tip,amount){
      const received=amount;
@@ -211,7 +211,9 @@
        '\n\nOpen Cash management to review your cash session.');
    }
    function checkout(){
-     if(state.pendingSquare){toast('Wait for the Square Sandbox payment result.');return;}
+     const production=root.LaurieSquare?.environment?.()==='production';
+     const paymentLabel=production?'Square PRODUCTION card':'Square Sandbox card';
+     if(state.pendingSquare){toast('Wait for the Square payment result.');return;}
      const cash=ui.amounts(),card=root.LaurieCheckoutCharges.calculate(state,'card');
      if(!state.cart.length||cash.incomplete||card.incomplete||cash.total<=0||state.paidSaleId===state.saleId){
        toast('Review cart and prices first.');return;
@@ -224,7 +226,7 @@
      let selectedTip=0;
      const tipButtons=[0,10,15,20,25].map(percent=>
        '<button type="button" class="tipChoice'+(percent===0?' active':'')+'" data-tip-percent="'+percent+'">'+(percent===0?'No tip':percent+'%')+'</button>').join('');
-     open('Checkout · Cash or Sandbox card',
+     open(production?'Checkout · Cash or REAL card':'Checkout · Cash or Sandbox card',
        '<p class="opsWarning"><strong>Taxes are not calculated.</strong> Required Gratuity applies to card payments only; cash payments never include it. The separate Service charge, if enabled, applies to both.</p>'+
        '<div class="checkoutSummary"><div><span>Items</span><strong>'+amt(cash.sub)+'</strong></div>'+
        cash.charges.map(c=>'<div><span>'+e(c.label)+' (required, cash & card)</span><strong>'+amt(c.amountCents)+'</strong></div>').join('')+
@@ -242,7 +244,7 @@
        '<div id="opsQuickCash" class="opsQuickCash"></div>'+
        '<label class="field">Cash given ($)<input id="opsCashGiven" type="text" inputmode="decimal" value="'+(cash.total/100).toFixed(2)+'"></label>'+
        '<p class="opsChange">Change due: <strong id="opsCashChange">$0.00</strong></p>'+
-       '<p class="fine">Cash sales save locally and need an open cash session. Square Sandbox card payments are tests only. A card-only mandatory charge can be subject to card surcharge restrictions even if called Gratuity.</p>',[
+       '<p class="fine">Cash sales save locally and need an open cash session. Card payments are '+(production?'REAL charges':'Sandbox tests only')+'. A card-only mandatory charge can be subject to card surcharge restrictions even if called Gratuity.</p>',[
        {label:'Cancel',click:close},
        {label:'Record cash (local)',click:()=>{
          const value=formNum('opsCashGiven'),total=cash.total+selectedTip;
@@ -254,10 +256,11 @@
          }
          cashPayment(cash.sub,selectedTip,value);
        }},
-       {label:'Square Sandbox card',kind:'primary',click:()=>{
-         if(!root.LaurieSquare?.takePayment||ui.squareState()!=='authorized-sandbox'){
-           toast('Connect Square Sandbox before test card checkout.');return;
+       {label:paymentLabel,kind:'primary',click:()=>{
+         if(!root.LaurieSquare?.takePayment||ui.squareState()!==(production?'authorized-production':'authorized-sandbox')){
+           toast('Authorize '+paymentLabel+' first.');return;
          }
+         if(production && !confirm('REAL CARD CHARGE. This will charge a customer '+amt(card.total+selectedTip)+'. Verify Square location and the reader before continuing.'))return;
          const note=state.cart.map(x=>x.qty+'× '+x.name+(x.variant?' / '+x.variant:'')).join('; ')+
            (card.charges.length?' | Charges: '+card.charges.map(c=>c.label+' '+amt(c.amountCents)).join(', '):'')+
            (state.saleNote?' | '+state.saleNote:'');
