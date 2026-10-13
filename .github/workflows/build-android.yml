@@ -22,6 +22,8 @@ jobs:
           node --check app/src/main/assets/register-cart.js
           node --check app/src/main/assets/register-grid.js
           node scripts/test-register-grid.cjs
+          node --check app/src/main/assets/square-item-import.js
+          node scripts/test-square-item-import.cjs
           node --check app/src/main/assets/settings-addons.js
           node --check app/src/main/assets/settings-addons-ui.js
           node scripts/test-settings-addons.cjs
@@ -119,16 +121,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          tag="v1.11.0-sandbox"
-          asset="Lauries-Creations-POS-v1.11.0-Sandbox.apk"
+          tag="v1.12.0-sandbox"
+          asset="Lauries-Creations-POS-v1.12.0-Sandbox.apk"
           cp app/build/outputs/apk/debug/app-debug.apk "/tmp/$asset"
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "Release $tag already exists; preserving the existing downloadable APK."
           else
             gh release create "$tag" "/tmp/$asset" \
               --target "$GITHUB_SHA" \
-              --title "Laurie's Creations POS v1.11 — Live Customer Display" \
-              --notes-file RELEASE_NOTES_v1.11.md \
+              --title "Laurie's Creations POS v1.12 — Single Square Item Import" \
+              --notes-file RELEASE_NOTES_v1.12.md \
               --prerelease
           fi
           echo "Download release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
