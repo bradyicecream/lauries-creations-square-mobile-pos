@@ -16,6 +16,8 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import javax.net.ssl.HttpsURLConnection
+import java.net.URL
 import android.webkit.ValueCallback
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -49,7 +51,7 @@ class MainActivity : Activity() {
             put("type", type)
             put("message", message)
             put("paymentId", paymentId)
-            put("sandbox", true)
+            put("sandbox", !BuildConfig.IS_PRODUCTION)
         }.toString()
         runOnUiThread {
             browser.evaluateJavascript("window.receiveSquareEvent && window.receiveSquareEvent(${JSONObject.quote(payload)});", null)
@@ -71,9 +73,15 @@ class MainActivity : Activity() {
             }
             startActivity(Intent.createChooser(share, "Share customer display instructions"))
         }
+        @JavascriptInterface fun environment(): String = if (BuildConfig.IS_PRODUCTION) "production" else "sandbox"
         @JavascriptInterface fun squareState(): String {
             if (!squareReady) return "not-configured"
-            return if (MobilePaymentsSdk.authorizationManager().authorizationState.isAuthorized) "authorized-sandbox" else "unauthorized-sandbox"
+            val authorized = MobilePaymentsSdk.authorizationManager().authorizationState.isAuthorized
+            return if (BuildConfig.IS_PRODUCTION) {
+                if (authorized) "authorized-production" else "unauthorized-production"
+            } else {
+                if (authorized) "authorized-sandbox" else "unauthorized-sandbox"
+            }
         }
         @JavascriptInterface fun configureSquare() = runOnUiThread {
             try {
@@ -154,7 +162,8 @@ class MainActivity : Activity() {
         browser.addJavascriptInterface(RegisterBridge(), "LaurieSquare")
         setContentView(browser)
         browser.loadUrl("file:///android_asset/index.html")
-        if (squareReady && MobilePaymentsSdk.authorizationManager().authorizationState.isAuthorized) {
+        if (!BuildConfig.IS_PRODUCTION && squareReady &&
+            MobilePaymentsSdk.authorizationManager().authorizationState.isAuthorized) {
             MockReaderUI.show()
         }
     }
@@ -182,6 +191,10 @@ class MainActivity : Activity() {
     }
 
     private fun configureSquareDialog() {
+        if (BuildConfig.IS_PRODUCTION) {
+            configureProductionDialog()
+            return
+        }
         if (!squareReady) {
             val detail = if (BuildConfig.SQUARE_SANDBOX_APP_ID.isBlank()) {
                 "This installed APK was built without the Square Sandbox Application ID. Check the GitHub SQUARE_SANDBOX_APP_ID build secret and reinstall a correctly configured APK."
@@ -213,7 +226,7 @@ class MainActivity : Activity() {
                 .setPositiveButton("OK", null)
                 .show()
             notifyUI("authorized", "Square Sandbox is already connected.")
-            MockReaderUI.show()
+            if (!BuildConfig.IS_PRODUCTION) MockReaderUI.show()
             return
         }
         val pad = (resources.displayMetrics.density * 18).toInt()
@@ -280,6 +293,96 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun configureProductionDialog() {
+        if (!squareReady) {
+            AlertDialog.Builder(this)
+                .setTitle("Production Square unavailable")
+                .setMessage("Square production could not initialize. Confirm the correct production app ID and Square-registered signing certificate.")
+                .setPositiveButton("OK", null).show()
+            return
+        }
+        val missing = requiredPermissions()
+        if (missing.isNotEmpty()) {
+            AlertDialog.Builder(this)
+                .setTitle("Square device permissions required")
+                .setMessage("Allow location and the Square reader permissions before connecting production payments.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Continue") { _, _ -> requestPermissions(missing, 140) }
+                .show()
+            return
+        }
+        if (MobilePaymentsSdk.authorizationManager().authorizationState.isAuthorized) {
+            AlertDialog.Builder(this)
+                .setTitle("Production Square connected")
+                .setMessage("Real payments may be charged. Check your selected Square reader and the amount before checkout.")
+                .setPositiveButton("Reader settings") { _, _ ->
+                    MobilePaymentsSdk.settingsManager().showSettings { result ->
+                        if (result is Failure) notifyUI("error", "Reader settings: ${result.errorCode}")
+                    }
+                }
+                .setNegativeButton("Cancel", null).show()
+            return
+        }
+        val field = EditText(this).apply {
+            hint = "One-time pairing code from private dashboard"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            isSingleLine = true
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Authorize production Square")
+            .setMessage("In your private Square connection dashboard open Production payment authorization. Grant permissions, create a one-time pairing code, then enter that code here. This phone will not store or display OAuth access tokens.")
+            .setView(field)
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Connect") { _, _ ->
+                val code = field.text.toString().trim()
+                field.text.clear()
+                if (!Regex("^[A-Za-z0-9_-]{32}$").matches(code)) {
+                    notifyUI("error", "A valid 32-character pairing code is required.")
+                    return@setPositiveButton
+                }
+                notifyUI("status", "Verifying production authorization…")
+                // Token never enters the JavaScript WebView, source files, or Android logs.
+                Thread {
+                    var connection: HttpsURLConnection? = null
+                    try {
+                        connection = URL("https://lauries-square-oauth.netlify.app/api/square/production-redeem")
+                            .openConnection() as HttpsURLConnection
+                        connection.requestMethod = "POST"
+                        connection.connectTimeout = 10000
+                        connection.readTimeout = 10000
+                        connection.instanceFollowRedirects = false
+                        connection.useCaches = false
+                        connection.doOutput = true
+                        connection.setRequestProperty("Content-Type", "application/json")
+                        connection.setRequestProperty("Accept", "application/json")
+                        val payload = JSONObject().put("code", code).toString()
+                        connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+                        if (connection.responseCode != 200) throw IllegalStateException("Pairing code rejected or expired")
+                        val body = connection.inputStream.bufferedReader().use { it.readText() }
+                        if (body.length > 4096) throw IllegalStateException("Invalid pairing response")
+                        val result = JSONObject(body)
+                        if (result.optString("mode") != "production") throw IllegalStateException("Not a production authorization")
+                        val accessToken = result.optString("accessToken")
+                        val locationId = result.optString("locationId")
+                        if (accessToken.isBlank() || locationId != "LHV4RK9G8JN4T")
+                            throw IllegalStateException("Production location verification failed")
+                        runOnUiThread {
+                            MobilePaymentsSdk.authorizationManager().authorize(accessToken, locationId) { authorized ->
+                                when (authorized) {
+                                    is Success -> notifyUI("authorized", "PRODUCTION Square connected. Real payments are enabled only on compatible, Square-approved devices.")
+                                    is Failure -> notifyUI("error", "Production authorization was rejected: ${authorized.errorCode}")
+                                }
+                            }
+                        }
+                    } catch (error: Exception) {
+                        notifyUI("error", "Production pairing failed: ${error.javaClass.simpleName}. Check authorization and try a new code.")
+                    } finally {
+                        connection?.disconnect()
+                    }
+                }.start()
+            }.show()
+    }
+
     private fun startSandboxPayment(amountCents: Int, referenceId: String, note: String, tipCents: Int) {
         if (inPayment) { notifyUI("error", "A payment is already in progress."); return }
         if (!squareReady || !MobilePaymentsSdk.authorizationManager().authorizationState.isAuthorized) {
@@ -306,12 +409,15 @@ class MainActivity : Activity() {
             val params = builder.build()
             val prompt = PromptParameters(mode = PromptMode.DEFAULT)
             inPayment = true
-            notifyUI("processing", "Square Sandbox checkout opened. Use the mock reader to simulate a payment.")
+            notifyUI("processing", if (BuildConfig.IS_PRODUCTION)
+                "PRODUCTION payment screen opened. REAL card charge possible." else
+                "Square Sandbox checkout opened. Use the mock reader to simulate a payment.")
             MobilePaymentsSdk.paymentManager().startPaymentActivity(params, prompt) { result ->
                 inPayment = false
                 when (result) {
                     is Success -> when (val payment = result.value) {
-                        is OnlinePayment -> notifyUI("success", "Sandbox payment completed (TEST ONLY).", payment.id)
+                        is OnlinePayment -> notifyUI("success", if (BuildConfig.IS_PRODUCTION)
+                            "PRODUCTION payment completed." else "Sandbox payment completed (TEST ONLY).", payment.id)
                         is OfflinePayment -> notifyUI("error", "Unexpected offline payment result. Check Sandbox transactions before retrying.", payment.localId)
                     }
                     is Failure -> notifyUI("error", "Square payment was not completed: ${result.errorCode}. Check Sandbox activity before retrying.")

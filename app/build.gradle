@@ -3,22 +3,55 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
-// Sandbox application ID only. NEVER put a real access token in Gradle or the repository.
+// Two explicitly separated build environments. No Square access token is compiled into either APK.
+def paymentEnvironment = providers.gradleProperty('paymentEnvironment').orElse('sandbox').get()
+if (!(paymentEnvironment in ['sandbox','production'])) throw new GradleException('Unsupported payment environment')
+def isProduction = paymentEnvironment == 'production'
 def sandboxId = providers.gradleProperty('squareSandboxAppId').orElse('').get()
+def productionId = providers.gradleProperty('squareProductionAppId').orElse('').get()
+def appId = isProduction ? productionId : sandboxId
+if (isProduction) {
+    if (!productionId || productionId.startsWith('sandbox-'))
+        throw new GradleException('A production Square Application ID is required.')
+    def taskNames = gradle.startParameter.taskNames.collect { it.toLowerCase(java.util.Locale.ROOT) }
+    if (taskNames.any { it.contains('debug') } || !taskNames.any { it.contains('release') })
+        throw new GradleException('Production must be built as a signed release, never as debug.')
+}
 android {
     namespace 'com.lauriescreations.mobile'
     compileSdk 36
     defaultConfig {
-        applicationId 'com.lauriescreations.mobile'
+        applicationId isProduction ? 'com.lauriescreations.mobile.production' : 'com.lauriescreations.mobile'
         minSdk 28
         targetSdk 35
-        versionCode 15
-        versionName '1.12.0-sandbox'
+        versionCode isProduction ? 1 : 15
+        versionName isProduction ? '1.0.0-production' : '1.12.0-sandbox'
         buildConfigField 'String', 'SQUARE_SANDBOX_APP_ID', '"' + sandboxId.replace('\\', '\\\\').replace('"', '\\"') + '"'
+        buildConfigField 'String', 'SQUARE_APP_ID', '"' + appId.replace('\\', '\\\\').replace('"', '\\"') + '"'
+        buildConfigField 'boolean', 'IS_PRODUCTION', isProduction ? 'true' : 'false'
+    }
+    signingConfigs {
+        production {
+            if (isProduction) {
+                def path = providers.gradleProperty('productionKeystorePath').orElse('').get()
+                def storePass = providers.gradleProperty('productionStorePassword').orElse('').get()
+                def alias = providers.gradleProperty('productionKeyAlias').orElse('').get()
+                def keyPass = providers.gradleProperty('productionKeyPassword').orElse('').get()
+                if (!path || !storePass || !alias || !keyPass)
+                    throw new GradleException('Production signing properties are missing.')
+                storeFile file(path)
+                storePassword storePass
+                keyAlias alias
+                keyPassword keyPass
+            }
+        }
     }
     buildTypes {
         debug { minifyEnabled false }
-        release { minifyEnabled false }
+        release {
+            minifyEnabled false
+            if (isProduction) signingConfig signingConfigs.production
+        }
     }
     buildFeatures { buildConfig true }
     compileOptions {

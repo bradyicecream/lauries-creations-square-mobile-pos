@@ -26,6 +26,7 @@ jobs:
           node --check netlify/functions/oauth.mjs
           node --check netlify/functions/auth-helpers.mjs
           node --check netlify/functions/catalog-readonly.mjs
+          node --check netlify/functions/production-pair.mjs
           node --check public/live-square-catalog.js
           node --check public/catalog-compare.js
       - name: Run OAuth and catalog security tests

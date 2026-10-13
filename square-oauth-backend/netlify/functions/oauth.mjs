@@ -1,5 +1,5 @@
 /* Dedicated single-merchant Square production OAuth backend.
-   Read-only scopes only; merchant data and Square tokens never reach a mobile client.
+   Catalog access remains read-only. Payment privileges require a separate, explicit consent flow.
    Deployment intentionally refuses to authorize when any private env setting is missing.
 */
 import {getStore} from '@netlify/blobs';
@@ -8,6 +8,9 @@ import {randomNonce,secureEqual,signSession,verifySession,parseCookie,keyFromEnv
 
 const API_VERSION='2026-09-16';
 const SCOPES='MERCHANT_PROFILE_READ ITEMS_READ';
+const PAYMENT_SCOPES='MERCHANT_PROFILE_READ ITEMS_READ PAYMENTS_WRITE PAYMENTS_WRITE_IN_PERSON';
+const PAYMENT_TOKEN_KEY='authorized-payments-v1';
+const MOBILE_LOCATION_ID='LHV4RK9G8JN4T';
 const STORE_NAME='lauries-square-oauth-private';
 const TOKEN_KEY='authorized-seller-v1';
 const SECRET_KEYS=['SQUARE_APPLICATION_ID','SQUARE_APPLICATION_SECRET',
@@ -43,12 +46,12 @@ const stateCookie=state=>'laurie_oauth_state='+encodeURIComponent(state)+
   '; Path=/oauth/callback; Max-Age=600; Secure; HttpOnly; SameSite=Lax';
 const clearState='laurie_oauth_state=; Path=/oauth/callback; Max-Age=0; Secure; HttpOnly; SameSite=Lax';
 const blob=()=>getStore(STORE_NAME);
-async function getSaved(){
-  const stored=await blob().get(TOKEN_KEY);
+async function getSaved(key=TOKEN_KEY){
+  const stored=await blob().get(key);
   return stored?decryptObject(stored,keyFromEnv(setting('LAURIE_OAUTH_ENCRYPTION_KEY'))):null;
 }
-async function saveToken(record){
-  await blob().set(TOKEN_KEY,encryptObject(record,keyFromEnv(setting('LAURIE_OAUTH_ENCRYPTION_KEY'))));
+async function saveToken(record,key=TOKEN_KEY){
+  await blob().set(key,encryptObject(record,keyFromEnv(setting('LAURIE_OAUTH_ENCRYPTION_KEY'))));
 }
 async function squareTokenRequest(body){
   const reply=await fetch('https://connect.squareup.com/oauth2/token',
@@ -91,11 +94,12 @@ async function login(req){
     return html('Sign-in unsuccessful','<p>Incorrect administrator passphrase. <a href="/">Try again</a>.</p>',401);
   return redirect('/oauth/status',{'set-cookie':sessionCookie(signSession(setting('LAURIE_OAUTH_ADMIN_KEY')))});
 }
-async function start(req){
+async function start(req,payments=false){
   if(req.method!=='GET')return html('Method not allowed','',405);
-  const state=randomNonce();
+  // Prefix is included in the signed same-site state cookie; only a deliberate admin action enables payment scope.
+  const state=(payments?'payments.':'')+randomNonce();
   const params=new URLSearchParams({client_id:setting('SQUARE_APPLICATION_ID'),
-    scope:SCOPES,state,session:'false'});
+    scope:payments?PAYMENT_SCOPES:SCOPES,state,session:'false'});
   const uri='https://connect.squareup.com/oauth2/authorize?'+params.toString();
   return redirect(uri,{'set-cookie':stateCookie(state)});
 }
@@ -108,6 +112,7 @@ async function callback(req,url){
     '<p>The Square callback state does not match this session. Start the connection again from your private dashboard.</p>',403,headers);
   if(url.searchParams.has('error'))return html('Authorization not approved',
     '<p>Square authorization was not completed. No Square tokens were saved.</p>',400,headers);
+  const isPayments=state.startsWith('payments.');
   const code=url.searchParams.get('code');
   if(!code||code.length>200)return html('Missing authorization code','<p>Square did not send a valid code.</p>',400,headers);
   try{
@@ -115,11 +120,28 @@ async function callback(req,url){
       client_secret:setting('SQUARE_APPLICATION_SECRET'),code,grant_type:'authorization_code'});
     const expected=setting('SQUARE_EXPECTED_MERCHANT_ID');
     if(expected && token.merchant_id!==expected)throw new Error('Unexpected merchant account');
-    // Overwrites only this dedicated site's single encrypted seller record.
-    await saveToken({access_token:token.access_token,refresh_token:token.refresh_token,
-      expires_at:token.expires_at,merchant_id:token.merchant_id,scopes:SCOPES.split(' '),
-      authorized_at:new Date().toISOString()});
-    return redirect('/oauth/status',headers);
+    if(isPayments){
+      // OAuth callback alone does not establish payment rights. Verify actual token capabilities with Square.
+      const check=await fetch('https://connect.squareup.com/oauth2/token/status',{
+        method:'POST',headers:{authorization:'Bearer '+token.access_token,'Square-Version':API_VERSION,
+          'content-type':'application/json'},body:'{}'});
+      const status=await check.json().catch(()=>({}));
+      const actual=Array.isArray(status.scopes)?status.scopes:[];
+      if(!check.ok||status.merchant_id!==token.merchant_id||status.client_id!==setting('SQUARE_APPLICATION_ID')||
+        !PAYMENT_SCOPES.split(' ').every(scope=>actual.includes(scope)))throw new Error('Payment rights not granted');
+      await saveToken({access_token:token.access_token,refresh_token:token.refresh_token,
+        expires_at:token.expires_at,merchant_id:token.merchant_id,scopes:actual,
+        authorized_at:new Date().toISOString()},PAYMENT_TOKEN_KEY);
+      // A newly authorized payment token also contains the read scopes; keep catalog access working.
+      await saveToken({access_token:token.access_token,refresh_token:token.refresh_token,
+        expires_at:token.expires_at,merchant_id:token.merchant_id,scopes:actual,
+        authorized_at:new Date().toISOString()});
+    }else{
+      await saveToken({access_token:token.access_token,refresh_token:token.refresh_token,
+        expires_at:token.expires_at,merchant_id:token.merchant_id,scopes:SCOPES.split(' '),
+        authorized_at:new Date().toISOString()});
+    }
+    return redirect(isPayments?'/oauth/payments-status':'/oauth/status',headers);
   }catch{
     return html('Connection could not be completed',
       '<p>Authorization failed or encrypted token storage was unavailable. No credentials are displayed. Check secure server configuration and retry.</p>',502,headers);
@@ -137,7 +159,27 @@ async function status(){
       '<p><a href="/oauth/locations">View Square business locations</a> · <a href="/oauth/catalog">Preview item names</a></p><p><a class="button" href="/catalog-compare.html">Full catalog comparison</a></p>':
       '<p>When ready, sign in to your actual Square account and approve the two read-only permissions.</p>')+
     '<p><a class="button" href="/oauth/start">'+(record?'Reauthorize Square':'Connect Square securely')+'</a></p>'+
-    '<p><small>Nothing is synchronized with the Android register yet. Paid Square add-ons require separate subscription and capability checks.</small></p>');
+    '<p><a href="/oauth/payments-status">Production payment authorization and secure device pairing</a></p>'+
+    '<p><small>Nothing is synchronized with the Android register automatically. Real payments require separate consent, device signing and hardware checks.</small></p>');
+}
+async function paymentsStatus(){
+  let record=null;
+  try{record=await getSaved(PAYMENT_TOKEN_KEY);}catch{
+    return html('Secure storage unavailable','<p>Unable to read encrypted payment authorization.</p>',503);
+  }
+  const permissions=['MERCHANT_PROFILE_READ','PAYMENTS_WRITE','PAYMENTS_WRITE_IN_PERSON'];
+  const ready=record&&permissions.every(p=>record.scopes?.includes(p))&&
+    record.merchant_id===setting('SQUARE_EXPECTED_MERCHANT_ID')&&
+    Boolean(setting('SQUARE_EXPECTED_MERCHANT_ID'));
+  return html('Production payment authorization',
+    '<p><strong>'+(ready?'Square payment permissions have been authorized.':'Production payments are not authorized yet.')+'</strong></p>'+
+    '<p>Read-only catalog access remains independent. Granting payment permissions requires an explicit Square approval.</p>'+
+    '<p><a class="button" href="/oauth/payments-start">'+(ready?'Reauthorize payment permissions':'Authorize payment permissions')+'</a></p>'+
+    (ready?'<p><strong>Pair a register:</strong> Create a one-time code for the production Android app. Never share the code publicly.</p>'+
+      '<form action="/api/square/production-pair" method="POST"><button class="button" type="submit">Create pairing code</button></form>':
+      '<p>No register can take live payments until authorization, a production-signed app, and a compatible reader have been checked.</p>')+
+    '<p>Required Square location: '+h(MOBILE_LOCATION_ID)+'</p>'+
+    '<p><a href="/oauth/status">Back to catalog connection</a></p>');
 }
 async function locations(){
   try{
@@ -163,7 +205,7 @@ async function catalog(){
 }
 export default async function handler(req){
   const route=new URL(req.url).pathname;
-  if(!['/oauth/login','/oauth/start','/oauth/callback','/oauth/status','/oauth/locations','/oauth/catalog'].includes(route))
+  if(!['/oauth/login','/oauth/start','/oauth/payments-start','/oauth/payments-status','/oauth/callback','/oauth/status','/oauth/locations','/oauth/catalog'].includes(route))
     return html('Not found','',404);
   if(!configured())return html('Connection backend is not configured',
     '<p>This new Netlify site needs its private environment settings and a deployed Functions build. No Square authorization can run yet.</p>',503);
@@ -171,6 +213,8 @@ export default async function handler(req){
   try{
     if(route==='/oauth/login')return login(req);
     if(route==='/oauth/start')return start(req);
+    if(route==='/oauth/payments-start')return start(req,true);
+    if(route==='/oauth/payments-status')return paymentsStatus();
     if(route==='/oauth/callback')return callback(req,new URL(req.url));
     if(route==='/oauth/status')return status();
     if(route==='/oauth/locations')return locations();

@@ -1,0 +1,80 @@
+name: Prepare Laurie POS Production APK (manual and private)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-production-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require production application and signing material
+        shell: bash
+        env:
+          PROD_ID: ${{ secrets.SQUARE_PRODUCTION_APP_ID }}
+          STORE_B64: ${{ secrets.LAURIE_PROD_KEYSTORE_B64 }}
+          STORE_PASS: ${{ secrets.LAURIE_PROD_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.LAURIE_PROD_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.LAURIE_PROD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for key in PROD_ID STORE_B64 STORE_PASS KEY_ALIAS KEY_PASS; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing production build secret: $key"
+              exit 1
+            fi
+          done
+          case "$PROD_ID" in
+            sandbox-*) echo "::error::Sandbox application ID cannot create a production build"; exit 1 ;;
+          esac
+          mkdir -p "$HOME/.gradle"
+          umask 077
+          printf '%s' "$STORE_B64" | base64 -d > "$RUNNER_TEMP/laurie-production.jks"
+          {
+            printf 'paymentEnvironment=production\n'
+            printf 'squareProductionAppId=%s\n' "$PROD_ID"
+            printf 'productionKeystorePath=%s\n' "$RUNNER_TEMP/laurie-production.jks"
+            printf 'productionStorePassword=%s\n' "$STORE_PASS"
+            printf 'productionKeyAlias=%s\n' "$KEY_ALIAS"
+            printf 'productionKeyPassword=%s\n' "$KEY_PASS"
+          } > "$HOME/.gradle/gradle.properties"
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager --install 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Gradle 8.13
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Build separately signed production APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check app/src/main/assets/app.js
+          node --check app/src/main/assets/operations-ui.js
+          node scripts/test-production-isolation.cjs
+          gradle --no-daemon :app:assembleRelease
+          APK=app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          "$SDK_ROOT/build-tools/36.0.0/apksigner" verify --print-certs "$APK" | grep -E 'Signer #1 certificate SHA-256 digest'
+          echo "Register the SHA-256 digest above with Square for package com.lauriescreations.mobile.production."
+      - name: Upload privately for hardware testing only
+        uses: actions/upload-artifact@v4
+        with:
+          name: Lauries-Creations-POS-PRODUCTION-UNVERIFIED
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 7
+      - name: Remove signing material
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/laurie-production.jks" "$HOME/.gradle/gradle.properties"

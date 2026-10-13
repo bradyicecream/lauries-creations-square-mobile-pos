@@ -24,6 +24,7 @@ jobs:
           node scripts/test-register-grid.cjs
           node --check app/src/main/assets/square-item-import.js
           node scripts/test-square-item-import.cjs
+          node scripts/test-production-isolation.cjs
           node --check app/src/main/assets/settings-addons.js
           node --check app/src/main/assets/settings-addons-ui.js
           node scripts/test-settings-addons.cjs
@@ -107,6 +108,23 @@ jobs:
           SQUARE_SANDBOX_APP_ID: ${{ secrets.SQUARE_SANDBOX_APP_ID }}
         run: |
           gradle --no-daemon :app:assembleDebug -PsquareSandboxAppId="$SQUARE_SANDBOX_APP_ID"
+      - name: Compile production path using disposable CI signing key (not distributable)
+        shell: bash
+        run: |
+          set -euo pipefail
+          keytool -genkeypair -noprompt -alias ci-test -keyalg RSA -keysize 2048 -validity 1 \
+            -dname "CN=CI Only, OU=Tests, O=Lauries Creations, C=US" \
+            -keystore "$RUNNER_TEMP/production-ci-only.jks" \
+            -storepass ci-never-for-real-use -keypass ci-never-for-real-use
+          gradle --no-daemon :app:assembleRelease \
+            -PpaymentEnvironment=production \
+            -PsquareProductionAppId=sq0idp-ci-nonfunctional-placeholder \
+            -PproductionKeystorePath="$RUNNER_TEMP/production-ci-only.jks" \
+            -PproductionStorePassword=ci-never-for-real-use \
+            -PproductionKeyAlias=ci-test \
+            -PproductionKeyPassword=ci-never-for-real-use
+          rm -f "$RUNNER_TEMP/production-ci-only.jks" app/build/outputs/apk/release/app-release.apk
+          echo "Production Kotlin and release signing path compiled with intentionally unusable CI credentials."
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:

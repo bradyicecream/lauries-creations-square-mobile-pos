@@ -23,7 +23,7 @@ assert.ok(op.includes('model.quickCashAmounts'),'Cash suggestions computed dynam
 assert.ok(op.includes('model.tipAmount'),'Tip selection calculates real money');
 assert.ok(op.includes("root.LaurieSquare.takePayment(card.total,state.saleId,note.slice(0,450),selectedTip)"),'Gratuity is in card base; voluntary tip separate');
 assert.ok(op.includes("model.recordSale(state,'local-cash'"),'Local cash sales recorded independently');
-assert.ok(js.includes("operationsApi.recordSale(state,'sandbox-card'"),'Inventory updated on successful Sandbox payment');
+assert.ok(js.includes("operationsApi.recordSale(state,msg.sandbox===false?'production-card':'sandbox-card'"),'Inventory updated and real versus test sales separated');
 assert.ok(js.includes("operationsApi.available"),'Inventory guard during item addition');
 assert.ok(kotlin.includes('tipCents: Int'),'Native bridge takes tip cents');
 assert.ok(kotlin.includes('builder.tipMoney(Money(tipCents.toLong(), CurrencyCode.USD))'),'SDK tipMoney used');

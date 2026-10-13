@@ -132,11 +132,11 @@
     const tax=billing.tax,base=billing.baseTotalCents,total=base+tipCents;
     if(!cash(tipCents)||!cash(total))return {ok:false,error:'Invalid sale amount.'};
     if(expectedBaseCents!==null&&base!==expectedBaseCents)
-      return {ok:false,error:'Sale total changed during Square Sandbox payment; check payment history before reconciling.'};
+      return {ok:false,error:'Sale total changed during Square payment; check payment history before reconciling.'};
     const session=method==='local-cash'?currentCash(s):null;
     if(method==='local-cash'&&!session)return {ok:false,error:'Open a cash drawer session before recording a cash sale.'};
     if(method==='local-cash'&&(!cash(tenderedCents)||tenderedCents<total))return {ok:false,error:'Cash given must cover the total.'};
-    if(method!=='local-cash'&&method!=='sandbox-card')return {ok:false,error:'Unsupported payment mode.'};
+    if(method!=='local-cash'&&method!=='sandbox-card'&&method!=='production-card')return {ok:false,error:'Unsupported payment mode.'};
     const sold=new Map();
     for(const item of s.cart)if(item.productId!=='manual'){
       sold.set(item.productId,(sold.get(item.productId)||0)+item.qty);
@@ -152,7 +152,7 @@
       baseTotalCents:base,
       tenderedCents:method==='local-cash'?tenderedCents:null,
       changeCents:method==='local-cash'?tenderedCents-total:null,
-      sessionId:session?.id||null,paymentId:method==='sandbox-card'?paymentId||'':null,
+      sessionId:session?.id||null,paymentId:(method==='sandbox-card'||method==='production-card')?paymentId||'':null,
       staffId:o.activeStaffId||null,customerId:o.selectedCustomerId||null
     };
     o.salesRecords.push(row);
