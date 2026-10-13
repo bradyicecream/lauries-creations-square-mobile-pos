@@ -38,7 +38,7 @@ const cookies=(req)=>req.headers.get('cookie')||'';
 const authorized=req=>verifySession(parseCookie(cookies(req),'laurie_admin_session'),
   setting('LAURIE_OAUTH_ADMIN_KEY'));
 const sessionCookie=session=>'laurie_admin_session='+encodeURIComponent(session)+
-  '; Path=/oauth; Max-Age=1800; Secure; HttpOnly; SameSite=Lax';
+  '; Path=/; Max-Age=1800; Secure; HttpOnly; SameSite=Lax';
 const stateCookie=state=>'laurie_oauth_state='+encodeURIComponent(state)+
   '; Path=/oauth/callback; Max-Age=600; Secure; HttpOnly; SameSite=Lax';
 const clearState='laurie_oauth_state=; Path=/oauth/callback; Max-Age=0; Secure; HttpOnly; SameSite=Lax';
@@ -134,7 +134,7 @@ async function status(){
     '<p><strong>'+ (record?'A Square account has authorized read-only access.':'No Square account authorized yet.')+'</strong></p>'+
     (record?'<p>Merchant ID: <code>'+h(record.merchant_id)+'</code></p>'+
       '<p>Permissions: <strong>Merchant profile and item catalog (read-only)</strong>.</p>'+
-      '<p><a href="/oauth/locations">View Square business locations</a> · <a href="/oauth/catalog">Preview item names</a></p>':
+      '<p><a href="/oauth/locations">View Square business locations</a> · <a href="/oauth/catalog">Preview item names</a></p><p><a class="button" href="/catalog-compare.html">Full catalog comparison</a></p>':
       '<p>When ready, sign in to your actual Square account and approve the two read-only permissions.</p>')+
     '<p><a class="button" href="/oauth/start">'+(record?'Reauthorize Square':'Connect Square securely')+'</a></p>'+
     '<p><small>Nothing is synchronized with the Android register yet. Paid Square add-ons require separate subscription and capability checks.</small></p>');
