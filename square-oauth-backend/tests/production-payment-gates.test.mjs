@@ -8,7 +8,7 @@ test('production OAuth requests payment permissions only on explicit start',()=>
   assert.match(oauth,/PAYMENTS_WRITE_IN_PERSON/);
   assert.match(oauth,/payments-start/);
   assert.match(oauth,/scope:payments\?PAYMENT_SCOPES:SCOPES/);
-  assert.match(oauth,/payments\.\.'/);
+  assert.ok(oauth.includes("'payments.'"));
   assert.match(oauth,/token\/status/);
   assert.match(oauth,/authorized-payments-v1/);
   assert.match(oauth,/SQUARE_EXPECTED_MERCHANT_ID/);
@@ -29,7 +29,7 @@ test('native pairing requires administrator session and origin on code generatio
 });
 test('production token is only returned to a bearer-code redeemed native client',()=>{
   assert.match(pair,/production-redeem/);
-  assert.match(pair,/production-device-code-\+digest/);
+  assert.ok(pair.includes("'production-device-code-'+digest(code)"));
   assert.match(pair,/validatedToken\(\)/);
   assert.match(pair,/production',locationId:LOCATION,accessToken:token\.access_token/);
   assert.match(pair,/SQUARE_EXPECTED_MERCHANT_ID/);
