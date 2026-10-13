@@ -73,6 +73,7 @@ class MainActivity : Activity() {
             }
             startActivity(Intent.createChooser(share, "Share customer display instructions"))
         }
+        @JavascriptInterface fun environment(): String = if (BuildConfig.IS_PRODUCTION) "production" else "sandbox"
         @JavascriptInterface fun squareState(): String {
             if (!squareReady) return "not-configured"
             val authorized = MobilePaymentsSdk.authorizationManager().authorizationState.isAuthorized
