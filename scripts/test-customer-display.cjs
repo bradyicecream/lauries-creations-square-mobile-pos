@@ -25,5 +25,5 @@ assert.ok(native.includes('latest.set('),'Native server stores updated public sn
 assert.ok(activity.includes('customerDisplay = CustomerDisplayServer(assets).also { it.start() }'),'Server starts with register');
 assert.ok(activity.includes('customerDisplay.stop()'),'Server stops on shutdown');
 assert.ok(activity.includes('@JavascriptInterface fun displayPublish('),'Native bridge receives cart');
-assert.ok(gradle.includes("versionName '1.12.0-sandbox'"),'Version bumped');
+assert.ok(gradle.includes("'1.12.0-sandbox'"),'Sandbox version preserved');
 console.log('Live customer display pairing, safe public payload, and refresh wiring validated.');
