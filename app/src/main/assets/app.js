@@ -521,6 +521,7 @@
   function manage(){openModal('Manage register',`<p>Update products, prices, modifiers and flavors. Sales tax calculation is disabled.</p><p class="fine">Pricing imported from an older register is NOT automatic. Verify against the Square catalog before accepting any payment.</p><div class="divider"></div><div style="display:flex;gap:7px;flex-wrap:wrap" id="manageProducts">${state.products.map(p=>`<button class="mini" type="button" data-manage-product="${e(p.id)}">${e(p.name)} · ${format(p.price)}</button>`).join('')}</div>`,[
       {label:'Export backup',click:()=>{const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='lauries-register-backup.json';link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);toast('Backup exported');}},
       {label:'Import backup',click:()=>{$('importFile').click();}},
+      {label:'Import Square item',click:()=>{$('squareItemFile').click();}},
       {label:'Flavors',click:flavorsEditor},
       {label:'Modifier groups',click:openModifierGroupsManager},
       {label:'Required charges',click:openChargeSettings},
@@ -530,6 +531,37 @@
 ]);
   }
   $('importFile').addEventListener('change',async ev=>{const file=ev.target.files[0];if(!file)return;try{const src=JSON.parse(await file.text());if(!Array.isArray(src.products)||!Array.isArray(src.flavors)||!Array.isArray(src.cart))throw Error('Invalid backup');if(!confirm('Replace your current register settings and cart with this backup?'))return;state=src;groupsApi.normalize(state);gridApi.normalize(state);modifiersApi.normalize(state);operationsApi.normalize(state);chargesApi.normalize(state);preferencesApi.normalize(state);state.taxPercent=0;initOperationsUI();state.saleId=makeId();state.paidSaleId=null;state.pendingSquare=null;save();closeModal();render();toast('Backup restored — verify prices');}catch(_){toast('Could not import this backup');}finally{ev.target.value='';}});
+  // Explicit transfer: an owner-selected JSON file updates one register item, never Square.
+  $('squareItemFile').addEventListener('change',async ev=>{
+    const file=ev.target.files[0];
+    if(!file)return;
+    try{
+      if(file.size>512*1024)throw Error('Item file is too large.');
+      const packet=JSON.parse(await file.text());
+      const importer=window.LaurieSquareItemImport;
+      if(!importer)throw Error('This app version does not support item imports.');
+      const proposal=importer.prepare(state,packet);
+      const newPrice=proposal.product.price===null?'variation-dependent / price review needed':format(proposal.product.price);
+      const prev=proposal.existingId?'Replace the matching local product':'Add a new product';
+      const message=prev+': '+proposal.product.name+'\n'+
+        'Square price: '+newPrice+'\n'+
+        'Variations: '+proposal.product.variants.length+' · Modifier groups: '+proposal.groups.length+'\n\n'+
+        'Only this product changes. Existing cart items, Favorites and other products stay as they are. Square is never modified.'+
+        (proposal.priceNeedsReview?'\n\nSome prices are missing and will require review before checkout.':'')+
+        '\n\nContinue?';
+      if(!confirm(message))return;
+      const nextState=JSON.parse(JSON.stringify(state));
+      const result=importer.apply(nextState,proposal);
+      modifiersApi.normalize(nextState);
+      // Commit once. If saving fails, keep the register's original in-memory state.
+      localStorage.setItem(KEY,JSON.stringify(nextState));
+      state=nextState;
+      save();closeModal();render();
+      toast((result.updated?'Updated ':'Imported ')+result.name+(result.priceNeedsReview?' — review missing prices':''));
+      showSection('checkout');registerTab='library';catalog();
+    }catch(error){alert('Square item was not imported: '+(error?.message||'Invalid file'));}
+    finally{ev.target.value='';}
+  });
   function squareState(){try{return window.LaurieSquare?.squareState?.()||'browser-preview';}catch(_){return 'unavailable';}}
   function syncSquareStatus(){const v=squareState(),text={'not-configured':'Add Sandbox app ID','unauthorized-sandbox':'Sandbox not connected','authorized-sandbox':'Sandbox connected','browser-preview':'Browser preview only','unavailable':'Square unavailable'};$('sqStatus').textContent=text[v]||v;}
   window.receiveSquareEvent=function(payload){let msg;try{msg=JSON.parse(payload);}catch(_){return;}
