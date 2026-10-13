@@ -242,11 +242,11 @@
     }
     const paid=state.paidSaleId===state.saleId;
     $('checkout').disabled=!state.cart.length||a.incomplete||paid||a.total<=0||Boolean(state.pendingSquare);
-    $('checkout').textContent=paid?'Test sale completed':state.pendingSquare?'Waiting for Square…':a.incomplete?'Review item prices':'Charge '+format(a.total)+' · TEST';
-    $('checkoutNotice').textContent=paid?'Test sale completed; do not charge the same sale again.':
-      state.pendingSquare?'Sandbox payment in progress. Do not edit or re-charge this sale until Square returns a result.':
+    $('checkout').textContent=paid?(productionMode?'Sale completed':'Test sale completed'):state.pendingSquare?'Waiting for Square…':a.incomplete?'Review item prices':'Charge '+format(a.total)+(productionMode?' · REAL':' · TEST');
+    $('checkoutNotice').textContent=paid?'Sale completed; do not charge the same sale again.':
+      state.pendingSquare?'Square payment in progress. Do not edit or re-charge this sale until Square returns a result.':
       a.incomplete?'One or more item prices or charge settings require review. Edit them in More.':
-      cardGratuity?'Gratuity is charged only on Square Sandbox card payments, not cash. No sales tax is calculated.':
+      cardGratuity?'Gratuity is charged only on Square card payments, not cash. No sales tax is calculated.':
       a.charges.length?'Required service charge included. No sales tax is calculated.':
       'No sales tax is calculated. Verify prices, payment method, and Square location before checkout.';
     $('cartItemCount').textContent=state.cart.reduce((n,x)=>n+(x.qty||1),0)+' items';
@@ -563,25 +563,28 @@
     finally{ev.target.value='';}
   });
   function squareState(){try{return window.LaurieSquare?.squareState?.()||'browser-preview';}catch(_){return 'unavailable';}}
-  function syncSquareStatus(){const v=squareState(),text={'not-configured':'Add Sandbox app ID','unauthorized-sandbox':'Sandbox not connected','authorized-sandbox':'Sandbox connected','browser-preview':'Browser preview only','unavailable':'Square unavailable'};$('sqStatus').textContent=text[v]||v;}
+  const productionMode=window.LaurieSquare?.environment?.()==='production';
+  function syncSquareStatus(){const v=squareState(),text={'not-configured':productionMode?'Production app unavailable':'Add Sandbox app ID','unauthorized-production':'Production not connected','authorized-production':'Production READY · REAL CHARGES','unauthorized-sandbox':'Sandbox not connected','authorized-sandbox':'Sandbox connected','browser-preview':'Browser preview only','unavailable':'Square unavailable'};$('sqStatus').textContent=text[v]||v;
+    if(productionMode){document.querySelector('.sandboxBanner').textContent='PRODUCTION MODE • REAL PAYMENTS • VERIFY AMOUNT & READER';$('squareConnect').textContent='Connect production';}
+  }
   window.receiveSquareEvent=function(payload){let msg;try{msg=JSON.parse(payload);}catch(_){return;}
     if(msg.type==='success'){
       const pending=state.pendingSquare;
       const validPending=pending&&pending.saleId===state.saleId;
       const result=validPending?
-        operationsApi.recordSale(state,'sandbox-card',pending.tipCents||0,null,msg.paymentId||'',pending.baseCents):
+        operationsApi.recordSale(state,msg.sandbox===false?'production-card':'sandbox-card',pending.tipCents||0,null,msg.paymentId||'',pending.baseCents):
         {ok:false,error:'No matching pending checkout record.'};
       // A genuine SDK success must lock the sale even if local tracking could not be written.
       state.paidSaleId=state.saleId;state.pendingSquare=null;
-      save();render();toast('Square SANDBOX approved a test payment.');
-      alert('TEST PAYMENT APPROVED (not a real charge).\nPayment ID: '+(msg.paymentId||'Check Sandbox Dashboard')+
+      save();render();toast(msg.sandbox===false?'Square PRODUCTION payment completed.':'Square SANDBOX approved a test payment.');
+      alert((msg.sandbox===false?'REAL PAYMENT COMPLETED.':'TEST PAYMENT APPROVED (not a real charge).')+'\nPayment ID: '+(msg.paymentId||'Check Sandbox Dashboard')+
         '\n\n'+(result.ok?'Local sale and stock updated.':'Local activity could not be recorded: '+result.error)+
         '\n\nCart is kept for review. Use Clear to begin a new sale.');
     }
     else {
       if(msg.type==='error'&&state.pendingSquare){
         state.pendingSquare=null;save();renderCart();
-        alert('Square reported that the test payment was not completed. Check Sandbox payment activity before retrying.');
+        alert('Square reported that the payment was not completed. Check the appropriate Square payment activity before retrying.');
       }
       toast(msg.message||msg.type);
       if(msg.type==='authorized')syncSquareStatus();
@@ -639,26 +642,28 @@
   };
   $('squareConnect').onclick=()=>{
     if(!window.LaurieSquare?.configureSquare){
-      alert('Square Sandbox setup is only available inside the installed Laurie’s Creations Android APK. Open the app on your Zebra device, not a browser preview.');
+      alert('Square connection setup is only available inside the installed Laurie’s Creations Android APK. Open the app on your Zebra device, not a browser preview.');
       return;
     }
-    toast('Opening Square Sandbox setup…');
+    toast(productionMode?'Opening production connection…':'Opening Square Sandbox setup…');
     try {
       window.LaurieSquare.configureSquare();
     } catch (error) {
-      alert('Could not open Square Sandbox setup: '+String(error?.message||error));
+      alert('Could not open Square setup: '+String(error?.message||error));
     }
   };
   $('squareDiagnostic').onclick=()=>{
     const status=squareState();
     const messages={
+      'authorized-production':'Square PRODUCTION is connected; REAL payments are enabled for this signed app. Check your reader and amounts before charging.',
+      'unauthorized-production':'Production app is initialized but needs an administrator-approved pairing code.',
       'authorized-sandbox':'Square Sandbox is connected. Reader settings and test checkout should be available.',
       'unauthorized-sandbox':'Square SDK is initialized. Tap Connect Sandbox and enter Sandbox credentials.',
       'not-configured':'Square SDK is not ready on this device. Tap Connect Sandbox for a detailed explanation.',
       'browser-preview':'You are in a browser preview, not the installed Android app.',
       'unavailable':'Unable to read native Square status. The Android interface may not be available.'
     };
-    alert('Laurie’s Creations POS v1.5.0\\n\\nSquare status: '+status+'\\n\\n'+(messages[status]||'Unknown SDK status.'))
+    alert('Laurie’s Creations POS\\n\\nSquare status: '+status+'\\n\\n'+(messages[status]||'Unknown SDK status.'))
   };
   $('readerSettings').onclick=()=>{if(window.LaurieSquare?.readerSettings)window.LaurieSquare.readerSettings();else toast('Reader settings are available in the Android APK');};
   $('checkout').onclick=()=>operationsUI.checkout();
