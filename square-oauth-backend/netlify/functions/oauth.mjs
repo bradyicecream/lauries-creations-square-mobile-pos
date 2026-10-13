@@ -1,5 +1,5 @@
 /* Dedicated single-merchant Square production OAuth backend.
-   Read-only scopes only; merchant data and Square tokens never reach a mobile client.
+   Catalog access remains read-only. Payment privileges require a separate, explicit consent flow.
    Deployment intentionally refuses to authorize when any private env setting is missing.
 */
 import {getStore} from '@netlify/blobs';
@@ -159,7 +159,8 @@ async function status(){
       '<p><a href="/oauth/locations">View Square business locations</a> · <a href="/oauth/catalog">Preview item names</a></p><p><a class="button" href="/catalog-compare.html">Full catalog comparison</a></p>':
       '<p>When ready, sign in to your actual Square account and approve the two read-only permissions.</p>')+
     '<p><a class="button" href="/oauth/start">'+(record?'Reauthorize Square':'Connect Square securely')+'</a></p>'+
-    '<p><small>Nothing is synchronized with the Android register yet. Paid Square add-ons require separate subscription and capability checks.</small></p>');
+    '<p><a href="/oauth/payments-status">Production payment authorization and secure device pairing</a></p>'+
+    '<p><small>Nothing is synchronized with the Android register automatically. Real payments require separate consent, device signing and hardware checks.</small></p>');
 }
 async function paymentsStatus(){
   let record=null;
