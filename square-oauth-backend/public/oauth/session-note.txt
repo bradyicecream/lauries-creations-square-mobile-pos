@@ -1,0 +1,1 @@
+Private session remains read-only and scoped to /oauth.

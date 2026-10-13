@@ -1,0 +1,1 @@
+This directory keeps browser entry points under /oauth so the existing private admin session cookie is available to authenticated read-only catalog requests.

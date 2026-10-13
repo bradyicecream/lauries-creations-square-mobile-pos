@@ -8,9 +8,9 @@ test('response exposes catalog comparison data but never serializes seller crede
   assert.match(s,/items:/);
   assert.match(s,/modifierLists:/);
   const responseStart=s.indexOf("return json({mode:'production-read-only'");
-  const responseEnd=s.indexOf('  }catch(error)',responseStart);
-  assert.ok(responseStart>=0&&responseEnd>responseStart);
-  const responseModel=s.slice(responseStart,responseEnd);
+  assert.ok(responseStart>=0);
+  const responseModel=s.slice(responseStart,s.indexOf('catch(error)',responseStart));
+  assert.ok(responseModel.length>0);
   assert.doesNotMatch(responseModel,/access_token|refresh_token|application_secret|adminKey|encryptionKey/);
   assert.doesNotMatch(responseModel,/\btoken\s*:/);
 });
