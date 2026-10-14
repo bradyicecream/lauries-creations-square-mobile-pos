@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Laurie’s Creations — Production Payment Setup</title>
+<style>*{box-sizing:border-box}body{font-family:system-ui,-apple-system,sans-serif;background:#f5f3f8;color:#24212b;margin:0;padding:22px}main{max-width:620px;margin:5vh auto;background:#fff;border-radius:16px;padding:30px;box-shadow:0 5px 28px #2820331b}h1{color:#673c87;font-size:25px;margin:0 0 8px}h2{font-size:18px;margin-top:25px}.notice{padding:14px;border-radius:10px;background:#fff6d8;border:1px solid #e3c45d;line-height:1.5}.safe{padding:14px;border-radius:10px;background:#f3edf8;border:1px solid #d9c8e5}.step{padding:11px 0;border-bottom:1px solid #eee}.step:last-child{border-bottom:0}.status{font-weight:750;color:#7a4c00}p,li{line-height:1.55}a{color:#5b377d;font-weight:700}.small{font-size:13px;color:#6b6470}</style></head>
+<body><main>
+<h1>✦ Laurie’s Creations</h1><strong>Administrator production payment authorization setup</strong>
+<p class="notice"><b>Production payments are NOT active.</b> This page is a setup checklist only. It cannot initiate a charge, create credentials, or produce a signed production APK.</p>
+<div class="safe"><b>Administrator access:</b> use the secure connection dashboard to authenticate before changing any private Square or Netlify configuration. Never paste signing keys, Square application secrets, access tokens, or administrator passphrases into this page, GitHub, screenshots, or chat.</div>
+<h2>Required before production can be enabled</h2>
+<div class="step">☐ Configure private Android signing secrets outside the repository.</div>
+<div class="step">☐ Build the signed application and obtain its production SHA-256 signing-certificate fingerprint.</div>
+<div class="step">☐ Register that exact SHA-256 certificate fingerprint with the correct Square application.</div>
+<div class="step">☐ Complete the required Square permission/authorization consent.</div>
+<div class="step">☐ Verify the intended Square merchant account and production location.</div>
+<div class="step">☐ Test the signed application on a compatible Android device and supported Square reader/payment hardware.</div>
+<div class="step">☐ Only after all checks are verified, deliberately enable the production payment path.</div>
+<h2>Current state</h2>
+<p class="status">BLOCKED — setup incomplete. Do not accept real payments through this build.</p>
+<p><a href="/">Return to the secure Square connection dashboard</a></p>
+<p class="small">This page intentionally contains no production credentials and no control that can activate or initiate payments.</p>
+</main></body></html>
