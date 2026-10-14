@@ -1,0 +1,1 @@
+The public-pages.test.mjs and deploy-public.test.mjs tests ensure the administrator production setup page remains present in the Netlify public directory and does not expose a payment activation submit control.
